@@ -1,0 +1,421 @@
+:root {
+  --ink: #0a0820;
+  --gold: #f0d23a;
+  --gold-dim: #c9a012;
+  --panel: rgba(36, 92, 190, 0.48);
+  --panel-line: #9ee2ff;
+  --cream: #f7f0d8;
+  --cyan: #6ad8ec;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--ink);
+  color: var(--cream);
+  font-family: "ZCOOL QingKe HuangYou", "Microsoft YaHei", sans-serif;
+  cursor: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+img, canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 40%, #2a2466, #0a0820 72%);
+}
+.boot-text {
+  font-family: "Press Start 2P", monospace;
+  font-size: 12px;
+  color: var(--gold);
+  letter-spacing: 2px;
+  animation: blink 1s steps(2, end) infinite;
+}
+.boot.is-done {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .4s ease;
+}
+
+.cursor {
+  position: fixed;
+  top: 0; left: 0;
+  width: 16px; height: 16px;
+  z-index: 50;
+  pointer-events: none;
+  border: 2px solid #1a1030;
+  background: radial-gradient(circle at 30% 30%, #ffe56a, #f0d23a 55%, #a88810);
+  box-shadow: 2px 2px 0 #0008;
+  opacity: 0;
+}
+.cursor.is-on { opacity: 1; }
+
+.game { position: relative; width: 100%; height: 100%; overflow: hidden; }
+
+.scene {
+  position: absolute;
+  inset: 0;
+  background: #141038;
+  overflow: hidden;
+}
+.scene-frame { position: absolute; inset: 0; overflow: hidden; }
+
+.layer {
+  position: absolute;
+  inset: -14%;
+  will-change: transform;
+}
+.layer-back { z-index: 1; }
+.layer-mid { z-index: 2; }
+.layer-front { z-index: 3; }
+
+.layer img,
+.layer canvas {
+  display: block;
+}
+
+/* 后景铺满 */
+.layer-back img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 42%;
+}
+
+/* 中景约 90%，居中偏下 */
+.layer-mid img,
+.layer-mid canvas {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 90%;
+  height: 90%;
+  max-width: none;
+  object-fit: contain;
+  object-position: center center;
+  transform: translate(-50%, -50%);
+}
+
+/* 前景铺满 */
+.layer-front img,
+.layer-front canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center bottom;
+}
+
+/* 前景白底未抠完时临时兜底 */
+.layer-front img[data-punch] { mix-blend-mode: multiply; }
+
+.hud, .stage, .toast { position: absolute; z-index: 10; }
+
+.hud {
+  top: 0; left: 0; right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: clamp(12px, 2.2vw, 22px);
+  pointer-events: none;
+}
+
+.coin {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  filter: drop-shadow(0 2px 0 #0008);
+  pointer-events: auto;
+}
+.coin-icon {
+  width: 120px;
+  height: 120px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: drop-shadow(2px 2px 0 #0008);
+  animation: bob 1.7s ease-in-out infinite;
+}
+.coin-count {
+  width: auto;
+  height: auto;
+  flex: 0 0 auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  animation: bob 1.7s ease-in-out infinite;
+  animation-delay: 0.22s;
+}
+
+.party {
+  display: flex;
+  flex-direction: row;
+  gap: 14px;
+  align-items: center;
+}
+.member { display: flex; align-items: center; gap: 8px; }
+.portrait {
+  width: 100px; height: 100px;
+  object-fit: contain;
+  background: transparent;
+  filter: drop-shadow(1px 1px 0 #0008);
+}
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 3px;
+  background: #0c0a1ecc;
+  border: 2px solid #1a1030;
+  box-shadow: 2px 2px 0 #0006;
+  image-rendering: pixelated;
+}
+.bar i {
+  display: block;
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  background: #a8ffb4;
+  box-shadow:
+    inset -1px -1px 0 #4ecf68,
+    inset 1px 1px 0 #e8ffeC;
+  image-rendering: pixelated;
+}
+
+.stage {
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(12px, 2.4vh, 22px);
+  padding: 16px;
+  padding-top: clamp(52px, 9vh, 84px);
+  pointer-events: none;
+}
+.stage .hero-slot,
+.stage .start-btn { pointer-events: auto; cursor: none; }
+
+.select-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(18px, 4.5vw, 44px);
+  min-width: min(440px, 92vw);
+  padding: clamp(12px, 2vw, 20px) clamp(20px, 3.5vw, 36px);
+  background: var(--panel);
+  border: 3px solid var(--panel-line);
+  box-shadow:
+    0 0 0 2px #1e5aa8,
+    inset 0 0 20px #ffffff18,
+    0 8px 0 #0a204888;
+  backdrop-filter: blur(1px);
+  animation: panel-in .65s ease both;
+}
+
+.hero-slot {
+  appearance: none;
+  border: 2px solid transparent;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  color: #fff;
+  transition: .15s ease;
+}
+.hero-slot:hover,
+.hero-slot:focus-visible {
+  outline: none;
+  transform: translateY(-3px);
+  background: #ffffff12;
+  border-color: #ffffff55;
+}
+.hero-slot.is-active {
+  background: #ffffff16;
+  border-color: var(--gold);
+}
+
+.sprite {
+  width: clamp(58px, 11vw, 88px);
+  height: auto;
+  filter: drop-shadow(2px 3px 0 #0008);
+  animation: bob 1.7s ease-in-out infinite;
+}
+.hero-slot[data-hero="blue"] .sprite {
+  animation-delay: .28s;
+  width: clamp(64px, 11vw, 94px);
+}
+.party .member:last-child .portrait {
+  width: 110px;
+  height: 110px;
+}
+
+.qty {
+  font-family: "Press Start 2P", monospace;
+  font-size: clamp(18px, 4vw, 30px);
+  color: #fff;
+  text-shadow: -3px 0 #000, 3px 0 #000, 0 -3px #000, 0 3px #000, 3px 3px 0 #000;
+}
+
+.title-block { text-align: center; animation: rise .8s ease both .1s; }
+.brand {
+  font-size: clamp(28px, 6.5vw, 52px);
+  letter-spacing: .16em;
+  font-weight: 400;
+  color: transparent;
+  background: linear-gradient(
+    180deg,
+    #fff6c8 0%,
+    #ffe56a 18%,
+    #6ad8ec 42%,
+    #4aa0ff 62%,
+    #c9a0ff 82%,
+    #ffe56a 100%
+  );
+  background-size: 100% 140%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(2px 0 0 #000) drop-shadow(-2px 0 0 #000) drop-shadow(0 2px 0 #000) drop-shadow(0 -2px 0 #000) drop-shadow(0 0 10px #5ad6e866);
+  animation: brand-shine 4.5s ease-in-out infinite;
+}
+
+@keyframes brand-shine {
+  0%, 100% { background-position: 0% 0%; }
+  50% { background-position: 0% 100%; }
+}
+.title {
+  margin-top: 2px;
+  font-size: clamp(20px, 4.6vw, 32px);
+  font-weight: 400;
+  letter-spacing: .1em;
+  text-shadow: 3px 3px 0 #000;
+}
+.subtitle {
+  margin-top: 8px;
+  font-size: clamp(13px, 2.4vw, 17px);
+  letter-spacing: .24em;
+  color: #c9b8ff;
+  text-shadow: -1px 0 #000, 1px 0 #000, 0 -1px #000, 0 1px #000, -1px -1px #000, 1px -1px #000, -1px 1px #000, 1px 1px #000;
+}
+
+.start-btn {
+  position: relative;
+  appearance: none;
+  border: 3px solid var(--gold);
+  background: linear-gradient(180deg, #4a3ab0, #2a1f72);
+  color: var(--gold);
+  font-family: "ZCOOL QingKe HuangYou", sans-serif;
+  font-size: clamp(18px, 3.6vw, 26px);
+  letter-spacing: .2em;
+  padding: 11px 30px;
+  overflow: hidden;
+  box-shadow: 0 5px 0 #1a1030, inset 0 0 0 2px #6a58d0;
+  animation: pulse 1.8s ease-in-out infinite;
+}
+.start-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.start-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #1a1030, inset 0 0 0 2px #6a58d0; }
+.start-btn__glow {
+  position: absolute;
+  inset: -40% -20%;
+  background: linear-gradient(110deg, transparent 40%, #fff3 50%, transparent 60%);
+  animation: sheen 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+.start-btn__label { position: relative; z-index: 1; }
+
+.hint {
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
+  color: #a99ad8;
+  letter-spacing: 1px;
+  animation: blink 1.4s steps(2, end) infinite;
+}
+
+.toast {
+  left: 50%;
+  bottom: 8%;
+  transform: translateX(-50%);
+  padding: 12px 18px;
+  background: #120e2ccc;
+  border: 2px solid var(--panel-line);
+  font-size: 17px;
+  letter-spacing: .1em;
+}
+.toast.is-show { animation: toast-in .35s ease both; }
+
+@keyframes blink { 50% { opacity: .35; } }
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 5px 0 #1a1030, inset 0 0 0 2px #6a58d0, 0 0 0 0 #f0d23a00; }
+  50% { box-shadow: 0 5px 0 #1a1030, inset 0 0 0 2px #6a58d0, 0 0 16px 2px #f0d23a44; }
+}
+@keyframes sheen {
+  0%, 55% { transform: translateX(-30%); opacity: 0; }
+  70% { opacity: 1; }
+  100% { transform: translateX(30%); opacity: 0; }
+}
+@keyframes panel-in {
+  from { opacity: 0; transform: translateY(10px) scale(.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@media (max-width: 560px) {
+  .portrait { width: 72px; height: 72px; }
+  .party .member:last-child .portrait { width: 82px; height: 82px; }
+  .coin-icon { width: 96px; height: 96px; }
+  .select-panel { gap: 12px; padding: 10px 12px; }
+  .brand { letter-spacing: .08em; }
+  .subtitle { letter-spacing: .1em; }
+}
+
+@media (pointer: coarse) {
+  body, .hero-slot, .start-btn { cursor: auto; }
+  .cursor { display: none; }
+}
+.loading-page {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 40%, #2a2466, #0a0820 72%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+}
+.loading-page.is-show {
+  opacity: 1;
+  pointer-events: auto;
+}
+.loading-page__text {
+  font-family: "Press Start 2P", monospace;
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--gold);
+  animation: blink 1s steps(2, end) infinite;
+}

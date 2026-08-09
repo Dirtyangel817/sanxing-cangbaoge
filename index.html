@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>勇闯三星藏宝阁</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Tiny5&family=Silkscreen:wght@400;700&family=ZCOOL+QingKe+HuangYou&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="boot" class="boot"><p class="boot-text">LOADING...</p></div>
+  <div id="cursor" class="cursor" aria-hidden="true"></div>
+
+  <div id="game" class="game" hidden>
+    <div class="scene" id="scene">
+      <div class="scene-frame" id="scene-frame">
+        <div class="layer layer-back" data-depth="0.18">
+          <img src="assets/background2.png" alt="" draggable="false" />
+        </div>
+        <div class="layer layer-mid" data-depth="0.48">
+          <img src="assets/background1.png" alt="" draggable="false" />
+        </div>
+        <div class="layer layer-front" data-depth="1.05">
+          <img src="assets/foreground-clouds.png" alt="" data-punch="248" draggable="false" />
+        </div>
+      </div>
+    </div>
+
+    <header class="hud">
+      <div class="coin">
+        <img class="coin-icon" src="assets/money.png" alt="" draggable="false" />
+        <canvas class="coin-count" id="coin-count" width="160" height="100" aria-label="金币 x000"></canvas>
+      </div>
+      <div class="party">
+        <div class="member">
+          <img class="portrait" src="assets/little-red-head.png" alt="" data-punch="250" draggable="false" />
+          <span class="bar" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        </div>
+        <div class="member">
+          <img class="portrait" src="assets/little-blue-head.png" alt="" data-punch="250" draggable="false" />
+          <span class="bar" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        </div>
+      </div>
+    </header>
+
+    <main class="stage">
+      <div class="select-panel" role="group" aria-label="出战角色">
+        <button class="hero-slot is-active" type="button" data-hero="red" aria-pressed="true">
+          <img class="sprite" src="assets/little-red.png" alt="红衣" data-punch="250" draggable="false" />
+          <span class="qty">x3</span>
+        </button>
+        <button class="hero-slot" type="button" data-hero="blue" aria-pressed="false">
+          <img class="sprite" src="assets/little-blue.png" alt="青衫" data-punch="250" draggable="false" />
+          <span class="qty">x3</span>
+        </button>
+      </div>
+
+      <div class="title-block">
+        <h1 class="brand">勇闯三星藏宝阁</h1>
+        <p class="subtitle">你能活到第几关？</p>
+      </div>
+
+      <button id="start-btn" class="start-btn" type="button">
+        <span class="start-btn__glow" aria-hidden="true"></span>
+        <span class="start-btn__label">开始潜入</span>
+      </button>
+      <p class="hint">空格 / 回车 · 左右切换角色</p>
+    </main>
+
+    <div id="toast" class="toast" hidden></div>
+  </div>
+
+  <div id="loading-page" class="loading-page" hidden aria-live="polite">
+    <p class="loading-page__text">LOADING...</p>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
