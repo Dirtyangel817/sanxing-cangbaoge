@@ -70,6 +70,22 @@
     </main>
 
     <div id="toast" class="toast" hidden></div>
+
+    <section id="runway" class="runway" hidden aria-label="跑酷场地">
+      <div class="runway-sky" aria-hidden="true">
+        <div class="run-parallax run-parallax--back" id="run-back"></div>
+        <div class="run-parallax run-parallax--mid" id="run-mid"></div>
+      </div>
+      <div class="runway-abyss" aria-hidden="true"></div>
+      <div class="track-layer" id="track-layer">
+        <div class="track-world" id="track-world"></div>
+      </div>
+      <div class="runner" id="runner">
+        <div class="runner__shadow" aria-hidden="true"></div>
+        <img class="runner__sprite" id="runner-sprite" alt="" width="128" height="128" draggable="false" />
+      </div>
+      <p class="run-hint">空格 / 点击 · 跳跃（可二连跳）</p>
+    </section>
   </div>
 
   <div id="loading-page" class="loading-page" hidden aria-live="polite">

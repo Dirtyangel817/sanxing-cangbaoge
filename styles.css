@@ -412,10 +412,227 @@ img, canvas {
   opacity: 1;
   pointer-events: auto;
 }
+.loading-page.is-leave {
+  opacity: 0;
+  pointer-events: none;
+}
 .loading-page__text {
   font-family: "Press Start 2P", monospace;
   font-size: 12px;
   letter-spacing: 2px;
   color: var(--gold);
   animation: blink 1s steps(2, end) infinite;
+}
+
+/* —— 横版无限跑道（起伏 / 空隙 / 金币） —— */
+.game.is-running .scene,
+.game.is-running .stage {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+
+.runway {
+  --hero-x: clamp(48px, 18vw, 160px);
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  overflow: hidden;
+  background: #120e2c;
+}
+.runway[hidden] { display: none !important; }
+
+.runway-sky {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.run-parallax {
+  position: absolute;
+  inset: 0 -20%;
+  background-repeat: repeat-x;
+  will-change: background-position;
+  image-rendering: pixelated;
+}
+.run-parallax--back {
+  z-index: 1;
+  background-image: url("assets/background2.png");
+  background-size: auto 115%;
+  background-position: 0 38%;
+  filter: saturate(1.05) brightness(0.9);
+}
+.run-parallax--mid {
+  z-index: 2;
+  background-image: url("assets/background1.png");
+  background-size: auto 100%;
+  background-position: 0 70%;
+  opacity: 0.95;
+  mask-image: linear-gradient(180deg, #000 35%, transparent 92%);
+  -webkit-mask-image: linear-gradient(180deg, #000 35%, transparent 92%);
+}
+
+.runway-abyss {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 56px;
+  z-index: 3;
+  background:
+    linear-gradient(180deg, #1a103088, #05040f),
+    repeating-linear-gradient(
+      90deg,
+      #1a1030 0 16px,
+      #0c0a18 16px 32px
+    );
+  pointer-events: none;
+}
+
+.track-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
+  pointer-events: none;
+}
+.track-world {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 100%;
+  will-change: transform;
+}
+
+.plat {
+  position: absolute;
+  bottom: 0;
+  image-rendering: pixelated;
+  box-shadow: 3px 0 0 #1a103066;
+}
+.plat__cap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 18px;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      #6bcf4a 0 26px,
+      #57b83a 26px 32px
+    );
+  border-top: 3px solid #8ef06a;
+  border-bottom: 3px solid #2f6b1c;
+}
+.plat__dirt {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 18px;
+  bottom: 0;
+  background:
+    repeating-linear-gradient(90deg, #d08948 0 28px, #b86a2e 28px 32px),
+    repeating-linear-gradient(0deg, #d08948 0 22px, #a85a24 22px 26px);
+  background-blend-mode: multiply, normal;
+  box-shadow: inset 0 3px 0 #8a4a1c88;
+}
+.plat--high .plat__cap {
+  background: repeating-linear-gradient(90deg, #7ad65a 0 26px, #62c242 26px 32px);
+}
+.plat--low .plat__cap {
+  background: repeating-linear-gradient(90deg, #5bbf3c 0 26px, #4aa32e 26px 32px);
+}
+
+.pickup-coin {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  margin-left: -18px;
+  image-rendering: pixelated;
+  filter: drop-shadow(1px 2px 0 #0008);
+  animation: coin-spin 0.9s steps(4, end) infinite;
+  transform-origin: 50% 50%;
+}
+.pickup-coin.is-got {
+  animation: coin-pop 0.28s ease forwards;
+  pointer-events: none;
+}
+
+.runner {
+  position: absolute;
+  left: var(--hero-x);
+  bottom: 96px;
+  z-index: 7;
+  width: clamp(72px, 12vw, 110px);
+  transform-origin: 50% 100%;
+  pointer-events: none;
+  will-change: bottom;
+}
+.runner__shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 52%;
+  height: 10px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, #0008 0%, #0000 72%);
+}
+.runner__sprite {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0 auto;
+  filter: drop-shadow(2px 2px 0 #0008);
+  transform-origin: 50% 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+.runner.is-running:not(.is-air) .runner__sprite {
+  animation: run-cycle 0.28s steps(2, end) infinite;
+}
+.runner.is-running:not(.is-air) .runner__shadow {
+  animation: run-shadow 0.28s steps(2, end) infinite;
+}
+.runner.is-air .runner__shadow { opacity: 0.35; transform: translateX(-50%) scaleX(0.65); }
+.runner[data-hero="blue"] .runner__sprite {
+  width: 108%;
+  margin-left: -4%;
+}
+
+.run-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  z-index: 8;
+  transform: translateX(-50%);
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
+  color: #c9b8ffcc;
+  letter-spacing: 1px;
+  text-shadow: 1px 1px 0 #000;
+  pointer-events: none;
+  animation: blink 1.4s steps(2, end) infinite;
+}
+
+@keyframes run-cycle {
+  0%   { transform: translateY(0) rotate(-4deg) scaleY(1); }
+  50%  { transform: translateY(-8px) rotate(4deg) scaleY(0.95); }
+  100% { transform: translateY(0) rotate(-4deg) scaleY(1); }
+}
+@keyframes run-shadow {
+  0%, 100% { transform: translateX(-50%) scaleX(1); opacity: 0.8; }
+  50% { transform: translateX(-50%) scaleX(0.72); opacity: 0.5; }
+}
+@keyframes coin-spin {
+  0% { transform: scaleX(1); }
+  50% { transform: scaleX(0.15); }
+  100% { transform: scaleX(1); }
+}
+@keyframes coin-pop {
+  to { transform: translateY(-28px) scale(0.2); opacity: 0; }
+}
+
+@media (max-width: 560px) {
+  .runner { width: clamp(64px, 22vw, 92px); }
+  .pickup-coin { width: 30px; height: 30px; margin-left: -15px; }
 }
