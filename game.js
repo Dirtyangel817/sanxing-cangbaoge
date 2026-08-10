@@ -480,11 +480,17 @@
 
   async function setRunnerSprite(heroId) {
     const src = HERO_SRC[heroId] || HERO_SRC.red;
-    const img = await loadImage(src);
-    const small = downsampleImage(img, 320);
-    const punched = punchSpriteBg(small, 248);
-    runnerSprite.src = punched.toDataURL("image/png");
     runner.dataset.hero = heroId;
+    /* 立绘 PNG 已是透明底，直接显示；再抠图会卡死或把黑发一并抠掉 */
+    runnerSprite.removeAttribute("src");
+    runnerSprite.src = `${src}?v=charsfix1`;
+    if (runnerSprite.decode) {
+      try {
+        await runnerSprite.decode();
+      } catch (_) {
+        /* ignore decode errors; src still set */
+      }
+    }
   }
 
   async function prepareCoinArt() {
@@ -1952,6 +1958,7 @@
   }
 
   async function prepareAssets() {
+    /* 角色头像/立绘已是透明 PNG，不再 data-punch，避免 canvas 替换后不显示 */
     const nodes = [...document.querySelectorAll("[data-punch]")];
     for (const node of nodes) {
       await replacePunched(node);

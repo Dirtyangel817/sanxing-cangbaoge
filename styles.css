@@ -342,6 +342,8 @@ img, canvas {
 .sprite {
   width: clamp(58px, 11vw, 88px);
   height: auto;
+  max-height: 120px;
+  object-fit: contain;
   filter: drop-shadow(2px 3px 0 #0008);
   animation: bob 1.7s ease-in-out infinite;
 }
