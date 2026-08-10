@@ -1113,6 +1113,7 @@ img, canvas {
   background:
     linear-gradient(#061028ee, #061028f5),
     url("assets/main/main_bg1.png") center / cover no-repeat;
+  image-rendering: pixelated;
   pointer-events: auto;
   cursor: auto;
   animation: panel-in 0.28s ease-out;
@@ -1126,74 +1127,104 @@ img, canvas {
   display: none !important;
 }
 .gameover-overlay__panel {
-  width: min(420px, 92vw);
-  padding: 28px 24px 26px;
-  border: 3px solid #7ec8ff;
-  border-radius: 18px;
-  background: linear-gradient(180deg, #1a3a78ee 0%, #0c1c44f2 55%, #081430f5 100%);
-  box-shadow: 0 0 0 2px #0a1838, 0 14px 0 #041020, inset 0 0 40px #2a60c044;
+  width: min(560px, 94vw);
+  padding: 32px 28px 28px;
+  border: 4px solid #c9d8ff;
+  border-radius: 0;
+  background:
+    linear-gradient(180deg, #243e88 0%, #14285c 48%, #0a1838 100%);
+  box-shadow:
+    0 0 0 4px #0a1028,
+    6px 6px 0 #040818,
+    inset 0 0 0 3px #3a68b0,
+    inset 0 0 28px #06102888;
   display: grid;
-  gap: 16px;
+  gap: 22px;
   justify-items: center;
   text-align: center;
+  image-rendering: pixelated;
 }
 .gameover-overlay__title {
-  font-family: "Press Start 2P", monospace;
-  font-size: clamp(16px, 3.6vw, 24px);
-  color: #ff7a7a;
-  letter-spacing: 0.14em;
-  text-shadow: 2px 2px 0 #000;
+  font-family: "Press Start 2P", "Silkscreen", monospace;
+  font-size: clamp(22px, 5vw, 34px);
+  color: #ff6a6a;
+  letter-spacing: 0.12em;
+  line-height: 1.45;
+  text-shadow:
+    3px 0 0 #000,
+    -3px 0 0 #000,
+    0 3px 0 #000,
+    0 -3px 0 #000,
+    3px 3px 0 #000;
   margin: 0;
+  image-rendering: pixelated;
 }
 .gameover-overlay__hint {
-  font-family: "Press Start 2P", monospace;
-  font-size: clamp(9px, 1.6vw, 11px);
-  color: #c9b8ff;
-  letter-spacing: 0.06em;
-  line-height: 1.9;
+  font-family: "Press Start 2P", "Silkscreen", monospace;
+  font-size: clamp(12px, 2.2vw, 16px);
+  color: #d8e4ff;
+  letter-spacing: 0.08em;
+  line-height: 1.85;
+  text-shadow: 2px 2px 0 #000;
   margin: 0;
 }
 .gameover-overlay__actions {
   width: 100%;
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 6px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+  margin-top: 4px;
 }
 .gameover-btn {
-  width: 100%;
-  padding: 16px 18px;
-  border: 3px solid #7ec8ff;
-  border-radius: 10px;
-  background: linear-gradient(180deg, #2a58b0, #1a3878);
-  color: #e8f2ff;
-  font-family: "Press Start 2P", monospace;
-  font-size: clamp(11px, 2vw, 13px);
-  letter-spacing: 0.1em;
+  flex: 1 1 180px;
+  max-width: 240px;
+  padding: 18px 14px;
+  border: 4px solid #9fd0ff;
+  border-radius: 0;
+  background: linear-gradient(180deg, #3a68c0, #1a3878);
+  color: #f2f7ff;
+  font-family: "Press Start 2P", "Silkscreen", monospace;
+  font-size: clamp(12px, 2.2vw, 15px);
+  letter-spacing: 0.06em;
+  line-height: 1.4;
   cursor: pointer;
-  box-shadow: 0 4px 0 #0a1838;
+  box-shadow:
+    4px 4px 0 #040818,
+    inset 0 0 0 2px #6ab0ff66;
+  image-rendering: pixelated;
 }
 .gameover-btn:hover {
-  filter: brightness(1.08);
-  transform: translateY(-1px);
+  filter: brightness(1.1);
+  transform: translate(-1px, -1px);
+  box-shadow:
+    5px 5px 0 #040818,
+    inset 0 0 0 2px #9fd0ff88;
 }
 .gameover-btn:active {
-  transform: translateY(1px);
-  box-shadow: 0 2px 0 #0a1838;
+  transform: translate(2px, 2px);
+  box-shadow:
+    1px 1px 0 #040818,
+    inset 0 0 0 2px #6ab0ff44;
 }
 .gameover-btn--continue {
   border-color: #ffe56a;
-  background: linear-gradient(180deg, #c9a020, #8a6010);
-  color: #fff8d8;
-  box-shadow: 0 5px 0 #3a2808, 0 0 18px #ffe56a44;
+  background: linear-gradient(180deg, #e0b028, #8a6010);
+  color: #fff8d0;
+  box-shadow:
+    4px 4px 0 #3a2808,
+    inset 0 0 0 2px #fff6c866;
 }
 .gameover-btn--continue:hover {
-  box-shadow: 0 7px 0 #3a2808, 0 0 24px #ffe56a66;
+  box-shadow:
+    5px 5px 0 #3a2808,
+    inset 0 0 0 2px #fff6c8aa;
 }
 .gameover-btn--quit {
-  border-color: #a0a8c0;
-  background: linear-gradient(180deg, #3a4060, #222838);
-  color: #d8dce8;
+  border-color: #b8c0d8;
+  background: linear-gradient(180deg, #4a5478, #262c40);
+  color: #e8ecf8;
 }
 
 @keyframes run-cycle {
