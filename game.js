@@ -22,6 +22,9 @@
   const runFront = document.getElementById("run-front");
   const trackWorld = document.getElementById("track-world");
   const pauseOverlay = document.getElementById("pause-overlay");
+  const gameoverOverlay = document.getElementById("gameover-overlay");
+  const gameoverContinueBtn = document.getElementById("gameover-continue");
+  const gameoverQuitBtn = document.getElementById("gameover-quit");
   const stageTimerEl = document.getElementById("stage-timer");
   const stageLabelEl = document.getElementById("stage-label");
   const stageTimeEl = document.getElementById("stage-time");
@@ -198,6 +201,7 @@
   let flatStreak = 0;
   let selected = "blue";
   let heroLives = START_LIVES;
+  let gameOver = false;
   let started = false;
   let running = false;
   let paused = false;
@@ -643,6 +647,7 @@
     document.querySelectorAll(".party .member").forEach((member) => {
       const n = member.querySelector(".lives__n");
       if (n) n.textContent = String(Math.max(0, heroLives));
+      member.classList.toggle("is-out", heroLives <= 0);
     });
   }
 
@@ -653,6 +658,40 @@
     });
     renderHp();
     renderLives();
+  }
+
+  function openGameOver() {
+    gameOver = true;
+    paused = true;
+    hero.dead = true;
+    hero.vx = 0;
+    hero.vy = 0;
+    if (pauseOverlay) pauseOverlay.hidden = true;
+    runway.classList.add("is-paused");
+    if (gameoverOverlay) gameoverOverlay.hidden = false;
+    game.classList.add("is-gameover");
+    cursor.classList.remove("is-on");
+    setBagOpen(false);
+    renderLives();
+  }
+
+  function continueChallenge() {
+    if (!gameOver) return;
+    gameOver = false;
+    if (gameoverOverlay) gameoverOverlay.hidden = true;
+    game.classList.remove("is-gameover");
+    heroLives = START_LIVES;
+    hero.hp = MAX_HP;
+    hero.dead = false;
+    renderHp();
+    renderLives();
+    resetHeroOnTrack();
+    setPaused(false);
+    showToast("继续挑战！", 1000);
+  }
+
+  function quitGame() {
+    window.location.reload();
   }
 
   function heroScreenX() {
@@ -1465,7 +1504,7 @@
   }
 
   function setPaused(on) {
-    if (!running) return;
+    if (!running || gameOver) return;
     paused = !!on;
     runway.classList.toggle("is-paused", paused);
     if (pauseOverlay) pauseOverlay.hidden = !paused;
@@ -1473,7 +1512,7 @@
   }
 
   function togglePause() {
-    if (!running || inShop) return;
+    if (!running || inShop || gameOver) return;
     setPaused(!paused);
   }
 
@@ -1547,19 +1586,12 @@
   }
 
   function loseLifeAndRespawn(delay = 450) {
+    if (gameOver || hero.dead) return;
     hero.dead = true;
     heroLives = Math.max(0, heroLives - 1);
     renderLives();
     if (heroLives <= 0) {
-      showToast("命数耗尽……", 1400);
-      setTimeout(() => {
-        hero.hp = MAX_HP;
-        heroLives = START_LIVES;
-        renderHp();
-        renderLives();
-        resetHeroOnTrack();
-        showToast("重整旗鼓，再闯宝阁！", 1200);
-      }, 900);
+      setTimeout(() => openGameOver(), delay);
       return;
     }
     showToast(`剩余命数 x${heroLives}`, 900);
@@ -1830,6 +1862,9 @@
   async function enterRunMode() {
     started = true;
     heroLives = START_LIVES;
+    gameOver = false;
+    if (gameoverOverlay) gameoverOverlay.hidden = true;
+    game.classList.remove("is-gameover");
     syncPartyHud();
     await Promise.all([
       setRunnerSprite(selected),
@@ -1946,7 +1981,7 @@
     window.addEventListener("pointerup", () => cursor.classList.remove("is-press"));
 
     window.addEventListener("click", (e) => {
-      if (!running || paused || inShop || hero.dead) return;
+      if (!running || paused || inShop || hero.dead || gameOver) return;
       if (e.button != null && e.button !== 0) return;
       const t = e.target;
       if (
@@ -1956,6 +1991,7 @@
           t.closest(".bag-panel") ||
           t.closest(".shop") ||
           t.closest(".pause-overlay") ||
+          t.closest(".gameover-overlay") ||
           t.closest(".hud") ||
           t.closest("button") ||
           t.closest("a"))
@@ -1977,6 +2013,8 @@
     if (shopBuyBtn) shopBuyBtn.addEventListener("click", buySelectedShopItem);
     if (bagBtn) bagBtn.addEventListener("click", toggleBag);
     if (bagCloseBtn) bagCloseBtn.addEventListener("click", () => setBagOpen(false));
+    if (gameoverContinueBtn) gameoverContinueBtn.addEventListener("click", continueChallenge);
+    if (gameoverQuitBtn) gameoverQuitBtn.addEventListener("click", quitGame);
 
     const keyMap = {
       KeyW: "w",
