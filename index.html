@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
   <title>勇闯三星藏宝阁</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -97,7 +99,7 @@
         <div class="weapon-rack" id="weapon-rack" hidden></div>
         <div class="fan-arc" id="fan-arc" aria-hidden="true"></div>
       </div>
-      <p class="run-hint">WASD 移动 · 空格跳 · 点击攻击 · P/Esc 暂停</p>
+      <p class="run-hint">WASD 移动 · 空格跳 · 仅点击攻击（无自动） · P/Esc 暂停</p>
       <div id="pause-overlay" class="pause-overlay" hidden>
         <p class="pause-overlay__title">暂停</p>
         <p class="pause-overlay__hint">按 P / Esc 继续</p>
@@ -163,6 +165,6 @@
     <p class="loading-page__text">LOADING...</p>
   </div>
 
-  <script src="game.js?v=manual1"></script>
+  <script src="combat.js?v=noauto2"></script>
 </body>
 </html>
