@@ -579,10 +579,10 @@
     playTone({ freq: 180, dur: 0.08, type: "square", vol: 0.07, slide: 90 });
   }
 
-  /** 掉命：清脆游戏机按键音（两声短促高音方波） */
+  /** 掉命：短促偏高两声（类马里奥踩怪，无下滑、不闷） */
   function sfxLifeLost() {
-    playTone({ freq: 1568, dur: 0.045, type: "square", vol: 0.07, slide: 1880 });
-    playTone({ freq: 2093, dur: 0.05, type: "square", vol: 0.065, slide: 2480, delay: 0.1 });
+    playTone({ freq: 1175, dur: 0.045, type: "square", vol: 0.085 });
+    playTone({ freq: 1568, dur: 0.05, type: "square", vol: 0.08, delay: 0.075 });
   }
 
   function flashPortraitOnLifeLost() {
