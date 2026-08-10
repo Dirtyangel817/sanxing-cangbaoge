@@ -666,12 +666,21 @@
     hero.dead = true;
     hero.vx = 0;
     hero.vy = 0;
+    if (toast) {
+      toast.hidden = true;
+      toast.classList.remove("is-show");
+    }
     if (pauseOverlay) pauseOverlay.hidden = true;
+    if (shopEl) shopEl.hidden = true;
     runway.classList.add("is-paused");
-    if (gameoverOverlay) gameoverOverlay.hidden = false;
+    if (bagBtn) bagBtn.hidden = true;
+    setBagOpen(false);
+    if (gameoverOverlay) {
+      gameoverOverlay.hidden = false;
+      gameoverOverlay.removeAttribute("hidden");
+    }
     game.classList.add("is-gameover");
     cursor.classList.remove("is-on");
-    setBagOpen(false);
     renderLives();
   }
 
@@ -680,6 +689,7 @@
     gameOver = false;
     if (gameoverOverlay) gameoverOverlay.hidden = true;
     game.classList.remove("is-gameover");
+    if (bagBtn) bagBtn.hidden = false;
     heroLives = START_LIVES;
     hero.hp = MAX_HP;
     hero.dead = false;
@@ -1591,11 +1601,13 @@
     heroLives = Math.max(0, heroLives - 1);
     renderLives();
     if (heroLives <= 0) {
-      setTimeout(() => openGameOver(), delay);
+      /* 立刻弹出全屏结算页，不用底部 toast */
+      openGameOver();
       return;
     }
     showToast(`剩余命数 x${heroLives}`, 900);
     setTimeout(() => {
+      if (gameOver) return;
       hero.hp = MAX_HP;
       renderHp();
       resetHeroOnTrack();

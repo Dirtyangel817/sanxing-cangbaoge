@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Tiny5&family=Silkscreen:wght@400;700&family=ZCOOL+QingKe+HuangYou&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=gameover1" />
+  <link rel="stylesheet" href="styles.css?v=gameover2" />
 </head>
 <body>
   <div id="boot" class="boot"><p class="boot-text">LOADING...</p></div>
@@ -106,7 +106,10 @@
         <p class="pause-overlay__title">暂停</p>
         <p class="pause-overlay__hint">按 P / Esc 继续</p>
       </div>
-      <div id="gameover-overlay" class="gameover-overlay" hidden>
+    </section>
+
+    <div id="gameover-overlay" class="gameover-overlay" hidden>
+      <div class="gameover-overlay__panel" role="dialog" aria-label="结算">
         <p class="gameover-overlay__title">命数耗尽</p>
         <p class="gameover-overlay__hint">是否继续挑战宝阁？</p>
         <div class="gameover-overlay__actions">
@@ -114,7 +117,7 @@
           <button type="button" class="gameover-btn gameover-btn--quit" id="gameover-quit">退出游戏</button>
         </div>
       </div>
-    </section>
+    </div>
 
     <button type="button" class="bag-btn" id="bag-btn" hidden title="已购商品">
       <img src="assets/shop/shop.png" alt="背包" draggable="false" />
@@ -175,6 +178,6 @@
     <p class="loading-page__text">LOADING...</p>
   </div>
 
-  <script src="combat.js?v=gameover1"></script>
+  <script src="combat.js?v=gameover2"></script>
 </body>
 </html>
