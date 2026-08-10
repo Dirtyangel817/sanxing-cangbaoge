@@ -534,6 +534,38 @@
     playTone({ freq: 640, dur: 0.1, type: "square", vol: 0.035, slide: 220, delay: 0.02 });
   }
 
+  /** 挥剑划破空气的破风声 */
+  function sfxWhoosh() {
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const dur = 0.2;
+    const t0 = ctx.currentTime;
+    const n = Math.max(1, (ctx.sampleRate * dur) | 0);
+    const buffer = ctx.createBuffer(1, n, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < n; i++) {
+      const env = 1 - i / n;
+      data[i] = (Math.random() * 2 - 1) * env * env;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.Q.value = 0.7;
+    filter.frequency.setValueAtTime(2200, t0);
+    filter.frequency.exponentialRampToValueAtTime(320, t0 + dur);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.14, t0 + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    src.start(t0);
+    src.stop(t0 + dur + 0.02);
+    playTone({ freq: 1100, dur: 0.11, type: "sawtooth", vol: 0.028, slide: 160 });
+  }
+
   function sfxHit() {
     playTone({ freq: 180, dur: 0.08, type: "square", vol: 0.07, slide: 90 });
   }
@@ -1441,7 +1473,8 @@
     runner.classList.remove(cls);
     void runner.offsetWidth;
     runner.classList.add("is-attacking", cls);
-    sfxAttack();
+    if (kind === "sword") sfxWhoosh();
+    else sfxAttack();
   }
 
   function tickWeaponAnims() {
@@ -1466,7 +1499,7 @@
     const { ox, oy } = attackOrigin(heroW);
 
     if (hasSword() && now >= hero.swordReadyAt) {
-      /* 宝剑：左右两侧都能打，优先最近目标 */
+      /* 宝剑：有怪打最近的；没怪也按时挥砍 */
       const hitsL = enemiesInArc(swordOx, swordOy, -1, swordReach());
       const hitsR = enemiesInArc(swordOx, swordOy, 1, swordReach());
       const hits = hitsL.concat(hitsR.filter((e) => !hitsL.includes(e)));
@@ -1474,9 +1507,9 @@
       if (target) {
         hero.facing = target.x < hero.x ? -1 : 1;
         hurtBoss(target, playerAtk());
-        playWeaponAnim("sword");
-        hero.swordReadyAt = now + SWORD_CD_MS;
       }
+      playWeaponAnim("sword");
+      hero.swordReadyAt = now + SWORD_CD_MS;
     }
 
     if (hasFan() && now >= hero.fanReadyAt) {

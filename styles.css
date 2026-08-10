@@ -896,19 +896,19 @@ img, canvas {
  * x = a·sin(φ), y = -b·cos(φ), φ: 0→π
  * 起点上扬 → 最远端在正前方 → 终点下压
  */
-/* 宝剑：手里小幅挥砍约 60°，不整圈翻转 */
+/* 宝剑：手里挥砍约 90°，不整圈翻转 */
 @keyframes sword-arm-slash {
   0% {
     transform: translate3d(0px, 0px, 0) rotate(0deg);
   }
   35% {
-    transform: translate3d(12px, -10px, 0) rotate(16deg);
+    transform: translate3d(14px, -12px, 0) rotate(22deg);
   }
   70% {
-    transform: translate3d(18px, 4px, 0) rotate(28deg);
+    transform: translate3d(22px, 6px, 0) rotate(40deg);
   }
   100% {
-    transform: translate3d(6px, 6px, 0) rotate(8deg);
+    transform: translate3d(8px, 8px, 0) rotate(12deg);
   }
 }
 @keyframes sword-arm-slash-left {
@@ -916,25 +916,25 @@ img, canvas {
     transform: scaleX(-1) translate3d(0px, 0px, 0) rotate(0deg);
   }
   35% {
-    transform: scaleX(-1) translate3d(12px, -10px, 0) rotate(16deg);
+    transform: scaleX(-1) translate3d(14px, -12px, 0) rotate(22deg);
   }
   70% {
-    transform: scaleX(-1) translate3d(18px, 4px, 0) rotate(28deg);
+    transform: scaleX(-1) translate3d(22px, 6px, 0) rotate(40deg);
   }
   100% {
-    transform: scaleX(-1) translate3d(6px, 6px, 0) rotate(8deg);
+    transform: scaleX(-1) translate3d(8px, 8px, 0) rotate(12deg);
   }
 }
-/* 剑身相对待机角约摆动 60° */
+/* 剑身相对待机角约摆动 90°：-15° → 75° */
 @keyframes sword-blade-spin {
   0%   { transform: rotate(-15deg); }
-  40%  { transform: rotate(45deg); }
-  100% { transform: rotate(10deg); }
+  40%  { transform: rotate(75deg); }
+  100% { transform: rotate(20deg); }
 }
 @keyframes sword-blade-spin-left {
   0%   { transform: rotate(-15deg); }
-  40%  { transform: rotate(45deg); }
-  100% { transform: rotate(10deg); }
+  40%  { transform: rotate(75deg); }
+  100% { transform: rotate(20deg); }
 }
 @keyframes fan-blade-spin {
   0%   { transform: rotate(-12deg); }
