@@ -85,15 +85,24 @@
   const ATTACK_FRAMES = 26;
   const HURT_IFRAMES = 45;
   const ATTACK_REACH = 96 * 3;
+<<<<<<< HEAD
+  const SWORD_CD_MS = 500;
+  const FAN_CD_MS = 1000;
+=======
   const SWORD_CD_MS = 500; /* 已废弃：宝剑不再自动冷却攻击 */
   const FAN_CD_MS = 1000; /* 已废弃：扇子不再自动冷却攻击 */
+>>>>>>> origin/main
   const SHOP_PRICE = 20;
   const SHOP_CATALOG = {
     baojian: {
       name: "宝剑",
       price: SHOP_PRICE,
       icon: "assets/shop/baojian.png",
+<<<<<<< HEAD
+      desc: "自动单体斩击（左右皆可），0.5 秒一次；攻击力 +2。可多次购买叠加。",
+=======
       desc: "点击挥砍单体斩击（左右皆可）；攻击力 +2。可多次购买叠加。",
+>>>>>>> origin/main
       apply() {
         buffs.atk += 2;
       },
@@ -102,7 +111,11 @@
       name: "芭蕉扇",
       price: SHOP_PRICE,
       icon: "assets/shop/bajiaoshan.png",
+<<<<<<< HEAD
+      desc: "自动范围扇击，1 秒一次；范围 +48。可多次购买叠加。",
+=======
       desc: "点击挥砍范围扇击；范围 +48。可多次购买叠加。",
+>>>>>>> origin/main
       apply() {
         buffs.reach += 48;
       },
@@ -200,8 +213,11 @@
   let lastBossAt = -9999;
   let flatStreak = 0;
   let selected = "blue";
+<<<<<<< HEAD
+=======
   let heroLives = START_LIVES;
   let gameOver = false;
+>>>>>>> origin/main
   let started = false;
   let running = false;
   let paused = false;
@@ -579,6 +595,8 @@
     playTone({ freq: 180, dur: 0.08, type: "square", vol: 0.07, slide: 90 });
   }
 
+<<<<<<< HEAD
+=======
   /** 掉命：短促偏高两声（类马里奥踩怪，无下滑、不闷） */
   function sfxLifeLost() {
     playTone({ freq: 1175, dur: 0.045, type: "square", vol: 0.085 });
@@ -597,6 +615,7 @@
     portrait.addEventListener("animationend", clear, { once: true });
   }
 
+>>>>>>> origin/main
   function pointInAttackArc(ox, oy, px, py, facing, reach) {
     const dx = (px - ox) * (facing < 0 ? -1 : 1);
     const dy = py - oy;
@@ -670,9 +689,14 @@
   }
 
   function syncPartyHud() {
+    // 选人页：红蓝头像+血条都显示；点开始进入后只留出战角色
+    const single = started || running || game.classList.contains("is-running");
     document.querySelectorAll(".party .member").forEach((member) => {
-      const on = member.dataset.hero === selected;
-      member.hidden = !on;
+      if (!single) {
+        member.hidden = false;
+        return;
+      }
+      member.hidden = member.dataset.hero !== selected;
     });
     renderHp();
     renderLives();
@@ -1540,7 +1564,11 @@
   }
 
   function togglePause() {
+<<<<<<< HEAD
+    if (!running || inShop) return;
+=======
     if (!running || inShop || gameOver) return;
+>>>>>>> origin/main
     setPaused(!paused);
   }
 
@@ -1560,6 +1588,9 @@
     runner.classList.remove(cls);
     void runner.offsetWidth;
     runner.classList.add("is-attacking", cls);
+<<<<<<< HEAD
+    sfxAttack();
+=======
     if (kind === "sword") sfxWhoosh();
     else sfxAttack();
   }
@@ -1632,6 +1663,52 @@
       renderHp();
       resetHeroOnTrack();
     }, delay);
+>>>>>>> origin/main
+  }
+
+  function tickWeaponAnims() {
+    if (hero.swordAnimFrames > 0) {
+      hero.swordAnimFrames -= 1;
+      if (hero.swordAnimFrames <= 0) runner.classList.remove("is-attacking-sword");
+    }
+    if (hero.fanAnimFrames > 0) {
+      hero.fanAnimFrames -= 1;
+      if (hero.fanAnimFrames <= 0) runner.classList.remove("is-attacking-fan");
+    }
+    if (hero.swordAnimFrames <= 0 && hero.fanAnimFrames <= 0) {
+      runner.classList.remove("is-attacking");
+    }
+  }
+
+  function tryAutoAttacks(heroW) {
+    if (!running || paused || hero.dead || inShop) return;
+    const now = performance.now();
+    const swordOx = hero.x;
+    const swordOy = hero.y + 46;
+    const { ox, oy } = attackOrigin(heroW);
+
+    if (hasSword() && now >= hero.swordReadyAt) {
+      /* 宝剑：左右两侧都能打，优先最近目标 */
+      const hitsL = enemiesInArc(swordOx, swordOy, -1, swordReach());
+      const hitsR = enemiesInArc(swordOx, swordOy, 1, swordReach());
+      const hits = hitsL.concat(hitsR.filter((e) => !hitsL.includes(e)));
+      const target = nearestEnemy(hits, swordOx, swordOy);
+      if (target) {
+        hero.facing = target.x < hero.x ? -1 : 1;
+        hurtBoss(target, playerAtk());
+        playWeaponAnim("sword");
+        hero.swordReadyAt = now + SWORD_CD_MS;
+      }
+    }
+
+    if (hasFan() && now >= hero.fanReadyAt) {
+      const hits = enemiesInArc(ox, oy, hero.facing, fanReach());
+      if (hits.length) {
+        for (let i = 0; i < hits.length; i++) hurtBoss(hits[i], playerAtk());
+        playWeaponAnim("fan");
+        hero.fanReadyAt = now + FAN_CD_MS;
+      }
+    }
   }
 
   function takeDamage(amount) {
@@ -1770,6 +1847,8 @@
       hero.hurtFrames -= 1;
       if (hero.hurtFrames <= 0) runner.classList.remove("is-hurt");
     }
+
+    tryAutoAttacks(heroW);
 
     const feetCenter = hero.x;
     const heroLeft = feetCenter - heroW * 0.28;
@@ -1916,6 +1995,7 @@
   async function startGame() {
     if (started) return;
     started = true;
+    syncPartyHud();
     const name = selected === "red" ? "钟离权" : "吕洞宾";
     startBtn.querySelector(".start-btn__label").textContent = "潜入中…";
     startBtn.disabled = true;
@@ -2045,8 +2125,11 @@
     if (shopBuyBtn) shopBuyBtn.addEventListener("click", buySelectedShopItem);
     if (bagBtn) bagBtn.addEventListener("click", toggleBag);
     if (bagCloseBtn) bagCloseBtn.addEventListener("click", () => setBagOpen(false));
+<<<<<<< HEAD
+=======
     if (gameoverContinueBtn) gameoverContinueBtn.addEventListener("click", continueChallenge);
     if (gameoverQuitBtn) gameoverQuitBtn.addEventListener("click", quitGame);
+>>>>>>> origin/main
 
     const keyMap = {
       KeyW: "w",
