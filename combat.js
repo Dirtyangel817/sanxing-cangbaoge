@@ -168,8 +168,8 @@
 
   const mouse = { x: 0.5, y: 0.5, tx: 0.5, ty: 0.5 };
   const cursorPos = { x: -40, y: -40, tx: -40, ty: -40 };
-  /* 开发期直接进格斗；要恢复选角/加载页时改回 false */
-  const SKIP_INTRO = true;
+  /* 开发期直接进格斗；正式游玩保持 false 以显示选人页 */
+  const SKIP_INTRO = false;
 
   const runScroll = { world: 0 };
   /* 场景视差平滑状态（避免跳跃时背景跟着抖） */
@@ -378,13 +378,36 @@
     });
   }
 
-  function punchWhite(img, threshold) {
+  function imageSize(img) {
+    return {
+      w: img.naturalWidth || img.width || 0,
+      h: img.naturalHeight || img.height || 0,
+    };
+  }
+
+  /** 大图先缩小再抠图，避免 1500px+ 立绘卡死主线程 */
+  function downsampleImage(img, maxSide = 320) {
+    const { w, h } = imageSize(img);
+    if (!w || !h) return img;
+    const scale = Math.min(1, maxSide / Math.max(w, h));
+    if (scale >= 0.999) return img;
     const c = document.createElement("canvas");
-    c.width = img.naturalWidth;
-    c.height = img.naturalHeight;
+    c.width = Math.max(1, Math.round(w * scale));
+    c.height = Math.max(1, Math.round(h * scale));
+    const ctx = c.getContext("2d");
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    return c;
+  }
+
+  function punchWhite(img, threshold) {
+    const { w, h } = imageSize(img);
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
     const ctx = c.getContext("2d", { willReadFrequently: true });
-    ctx.drawImage(img, 0, 0);
-    const data = ctx.getImageData(0, 0, c.width, c.height);
+    ctx.drawImage(img, 0, 0, w, h);
+    const data = ctx.getImageData(0, 0, w, h);
     const px = data.data;
     for (let i = 0; i < px.length; i += 4) {
       if (px[i] >= threshold && px[i + 1] >= threshold && px[i + 2] >= threshold) {
@@ -396,13 +419,12 @@
   }
 
   function punchSpriteBg(img, whiteThreshold = 248) {
+    const { w, h } = imageSize(img);
     const c = document.createElement("canvas");
-    const w = img.naturalWidth;
-    const h = img.naturalHeight;
     c.width = w;
     c.height = h;
     const ctx = c.getContext("2d", { willReadFrequently: true });
-    ctx.drawImage(img, 0, 0);
+    ctx.drawImage(img, 0, 0, w, h);
     const data = ctx.getImageData(0, 0, w, h);
     const px = data.data;
 
@@ -459,7 +481,8 @@
   async function setRunnerSprite(heroId) {
     const src = HERO_SRC[heroId] || HERO_SRC.red;
     const img = await loadImage(src);
-    const punched = punchSpriteBg(img, 248);
+    const small = downsampleImage(img, 320);
+    const punched = punchSpriteBg(small, 248);
     runnerSprite.src = punched.toDataURL("image/png");
     runner.dataset.hero = heroId;
   }
@@ -1908,7 +1931,13 @@
     try {
       const src = imgEl.currentSrc || imgEl.src;
       const img = await loadImage(src);
-      const canvas = punchWhite(img, threshold);
+      const maxSide = imgEl.classList.contains("sprite")
+        ? 360
+        : imgEl.classList.contains("portrait")
+          ? 280
+          : 900;
+      const small = downsampleImage(img, maxSide);
+      const canvas = punchWhite(small, threshold);
       canvas.className = imgEl.className;
       canvas.draggable = false;
       if (imgEl.classList.contains("sprite")) {
@@ -1924,7 +1953,10 @@
 
   async function prepareAssets() {
     const nodes = [...document.querySelectorAll("[data-punch]")];
-    await Promise.all(nodes.map(replacePunched));
+    for (const node of nodes) {
+      await replacePunched(node);
+      await new Promise((r) => setTimeout(r, 0));
+    }
   }
 
   function showToast(msg, duration = 1600) {
