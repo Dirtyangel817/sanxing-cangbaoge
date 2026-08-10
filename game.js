@@ -14,26 +14,68 @@
   const runnerSprite = document.getElementById("runner-sprite");
   const runBack = document.getElementById("run-back");
   const runMid = document.getElementById("run-mid");
+  const runFront = document.getElementById("run-front");
   const trackWorld = document.getElementById("track-world");
+  const pauseOverlay = document.getElementById("pause-overlay");
+  const stageTimerEl = document.getElementById("stage-timer");
+  const stageLabelEl = document.getElementById("stage-label");
+  const stageTimeEl = document.getElementById("stage-time");
+
+  const runBackArt = runBack && runBack.querySelector(".run-parallax__art");
+  const runMidArt = runMid && runMid.querySelector(".run-parallax__art");
+  const runFrontArt = runFront && runFront.querySelector(".run-parallax__art");
 
   const HERO_SRC = {
     red: "assets/little-red.png",
     blue: "assets/little-blue.png",
   };
   const COIN_SRC = "assets/money.png";
-  const HEIGHTS = [72, 110, 150, 196];
-  const SPEED = 2.6;
+  const ENEMY_SRC = "assets/tianbing1.png?v=2";
+  const FLOOR_SRC = "assets/main/main_floor1.png";
+  const FLOOR_SRC_W = 276;
+  const FLOOR_SRC_H = 597;
+  /* 侧面宽度（源图像素），拼接时下一块重叠上去 */
+  const FLOOR_SIDE_OVERLAP = 40;
+  /* 地形显示宽度 */
+  const FLOOR_UNIT_W = 176;
+  const FLOOR_UNIT_H = Math.round((FLOOR_UNIT_W * FLOOR_SRC_H) / FLOOR_SRC_W);
+  const FLOOR_STEP = FLOOR_UNIT_W * ((FLOOR_SRC_W - FLOOR_SIDE_OVERLAP) / FLOOR_SRC_W);
+  /* 地面高度（比上一版略低） */
+  const HEIGHTS = [84, 108, 132, 156, 180, 204];
+  /* 脚底相对实体顶面下移（只改碰撞，不挪贴图） */
+  const SURFACE_NUDGE = 20;
+  /* 天兵与主角同高站立，不再额外抬高 */
+  const ENEMY_Y_NUDGE = 0;
+  const MOVE_SPEED = 4.6;
   const GRAVITY = 0.72;
-  /* 相对原 13.5：高度翻倍 → 初速 ×√2 */
   const JUMP_V = 13.5 * Math.SQRT2;
   const MAX_JUMPS = 2;
   const LAND_TOL = 36;
-  const GAP_SAFE_RATIO = 0.8;
+  const GAP_SAFE_RATIO = 0.75;
   const FORCE_ZERO_GAP = false;
+  const MAX_HP = 20;
+  const HIT_DAMAGE = 3;
+  const PLAYER_ATK = 4;
+  const BOSS_MAX_HP = 16;
+  const BOSS_MOVE = 2.1;
+  const BOSS_HURT_FRAMES = 18;
+  const ATTACK_FRAMES = 20;
+  const HURT_IFRAMES = 45;
+  const ATTACK_REACH = 96 * 3;
+  /* 扇形攻击角度（相对水平向右，y 轴向上），单位度 */
+  const ARC_ANGLE_MIN = -28;
+  const ARC_ANGLE_MAX = 62;
+  const MIN_GAP_SPACING = 420;
+  const MIN_BOSS_SPACING = 1400;
+  const MIN_COIN_GAP = 110;
+  /* 可活动世界宽度 ≈ 1.5 屏：满屏走完后还剩约半屏 */
+  const ARENA_SCREEN_RATIO = 1.5;
+  const ARENA_EDGE_PAD = 48;
+  let arenaWidth = 1350;
 
   /**
    * 用与游戏相同的逐帧物理，模拟「起跳 + 顶点二连跳 + 落回原高度」的最大滞空帧数。
-   * 水平跨距 = 滞空帧数 × SPEED；缝隙上限再取 80%。
+   * 水平跨距按角色移速估算；缝隙上限再取比例。
    */
   function maxDoubleJumpAirFrames() {
     let y = 0;
@@ -43,7 +85,6 @@
     let frames = 0;
     for (let i = 0; i < 600; i++) {
       frames += 1;
-      /* 接近顶点时二连跳，对应最大滞空 */
       if (!usedSecond && jumpsLeft > 0 && vy <= 0) {
         vy = JUMP_V;
         jumpsLeft -= 1;
@@ -56,7 +97,7 @@
     return frames;
   }
 
-  const MAX_SAFE_GAP = maxDoubleJumpAirFrames() * SPEED * GAP_SAFE_RATIO;
+  const MAX_SAFE_GAP = maxDoubleJumpAirFrames() * MOVE_SPEED * GAP_SAFE_RATIO;
 
   function maxSafeGap() {
     return MAX_SAFE_GAP;
@@ -72,19 +113,49 @@
 
   const mouse = { x: 0.5, y: 0.5, tx: 0.5, ty: 0.5 };
   const cursorPos = { x: -40, y: -40, tx: -40, ty: -40 };
-  /* 开发期直接进跑酷；要恢复选角/加载页时改回 false */
+  /* 开发期直接进格斗；要恢复选角/加载页时改回 false */
   const SKIP_INTRO = true;
 
-  const runScroll = { back: 0, mid: 0, world: 0 };
-  const hero = { y: 110, vy: 0, onGround: true, dead: false, jumpsLeft: MAX_JUMPS };
+  const runScroll = { world: 0 };
+  /* 场景视差平滑状态（避免跳跃时背景跟着抖） */
+  const viewFx = { x: 0, y: 0 };
+  const keys = { w: false, a: false, s: false, d: false };
+  const hero = {
+    x: 180,
+    y: 110,
+    vx: 0,
+    vy: 0,
+    facing: 1,
+    onGround: true,
+    dead: false,
+    jumpsLeft: MAX_JUMPS,
+    hp: MAX_HP,
+    attackFrames: 0,
+    hurtFrames: 0,
+  };
   const platforms = [];
   const coins = [];
+  const enemies = [];
   let coinCount = 0;
   let nextX = 0;
+  let lastGapAt = -9999;
+  let lastBossAt = -9999;
+  let flatStreak = 0;
   let selected = "red";
   let started = false;
   let running = false;
+  let paused = false;
+  let stage = 1;
+  let stageTimeLeft = 30;
+  let stageClock = 0;
+  let waveCooldown = 0;
+  let stageBusy = false;
   let coinImgUrl = COIN_SRC;
+  let enemyImgUrl = ENEMY_SRC;
+  let floorImgUrl = FLOOR_SRC;
+  /* 顶部透明区对应的显示像素，用于脚底对齐实体顶面 */
+  let floorTopPad = 0;
+  let audioCtx = null;
 
   /* 细长、方正点阵字（对照 ref_money） */
   const PIXEL_GLYPHS = {
@@ -338,6 +409,103 @@
     }
   }
 
+  async function prepareEnemyArt() {
+    /* 天兵已是透明底 PNG，不再抠图 */
+    enemyImgUrl = ENEMY_SRC;
+  }
+
+  async function prepareFloorArt() {
+    /* 真透明 PNG，直接使用；测量顶部透明高度以对齐站立面 */
+    floorImgUrl = FLOOR_SRC;
+    const img = await loadImage(FLOOR_SRC);
+    const w = img.naturalWidth;
+    const h = img.naturalHeight;
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0);
+    const px = ctx.getImageData(0, 0, w, h).data;
+    let firstY = 0;
+    outer: for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (px[(y * w + x) * 4 + 3] > 16) {
+          firstY = y;
+          break outer;
+        }
+      }
+    }
+    floorTopPad = Math.round((firstY * FLOOR_UNIT_H) / h);
+  }
+
+  function ensureAudio() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    if (!audioCtx) audioCtx = new AC();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    return audioCtx;
+  }
+
+  function playTone({ freq, dur = 0.12, type = "square", vol = 0.07, slide = 0, delay = 0 }) {
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const t0 = ctx.currentTime + delay;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+    if (slide > 0) osc.frequency.exponentialRampToValueAtTime(Math.max(40, slide), t0 + dur);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.02);
+  }
+
+  function sfxJump() {
+    playTone({ freq: 280, dur: 0.1, type: "square", vol: 0.06, slide: 520 });
+  }
+
+  function sfxCoin() {
+    playTone({ freq: 880, dur: 0.07, type: "triangle", vol: 0.08, slide: 1400 });
+    playTone({ freq: 1320, dur: 0.1, type: "triangle", vol: 0.05, slide: 1800, delay: 0.05 });
+  }
+
+  function sfxAttack() {
+    playTone({ freq: 420, dur: 0.14, type: "sawtooth", vol: 0.045, slide: 140 });
+    playTone({ freq: 640, dur: 0.1, type: "square", vol: 0.035, slide: 220, delay: 0.02 });
+  }
+
+  function sfxHit() {
+    playTone({ freq: 180, dur: 0.08, type: "square", vol: 0.07, slide: 90 });
+  }
+
+  function pointInFanArc(ox, oy, px, py, facing = 1) {
+    const dx = (px - ox) * (facing < 0 ? -1 : 1);
+    const dy = py - oy;
+    const dist = Math.hypot(dx, dy);
+    if (dist > ATTACK_REACH || dist < 12) return false;
+    const deg = (Math.atan2(dy, dx) * 180) / Math.PI;
+    return deg >= ARC_ANGLE_MIN && deg <= ARC_ANGLE_MAX;
+  }
+
+  function activeHpBar() {
+    const members = document.querySelectorAll(".party .member .bar");
+    const idx = selected === "red" ? 0 : 1;
+    return members[idx] || members[0];
+  }
+
+  function renderHp() {
+    const bar = activeHpBar();
+    if (!bar) return;
+    const pills = bar.querySelectorAll("i");
+    pills.forEach((el, i) => {
+      el.classList.toggle("is-empty", i >= hero.hp);
+    });
+  }
+
   function heroScreenX() {
     const raw = getComputedStyle(runway).getPropertyValue("--hero-x").trim();
     const n = parseFloat(raw);
@@ -348,28 +516,170 @@
     return `x${String(Math.min(999, Math.max(0, n))).padStart(3, "0")}`;
   }
 
+  function stageDuration(n) {
+    if (n <= 1) return 30;
+    if (n <= 2) return 40;
+    return 60;
+  }
+
+  function bossHpForStage(n) {
+    return Math.round(BOSS_MAX_HP * (1 + (n - 1) * 0.5));
+  }
+
+  /** 后续波次数量：关卡越高越多 */
+  function waveSizeForStage(n) {
+    const base = 2 + Math.floor((n - 1) * 0.85);
+    const bonus = (Math.random() * (1.2 + n * 0.45)) | 0;
+    return Math.min(10, Math.max(2, base + bonus));
+  }
+
+  function livingEnemyCount() {
+    let n = 0;
+    for (let i = 0; i < enemies.length; i++) {
+      if (!enemies[i].dead) n += 1;
+    }
+    return n;
+  }
+
+  function clearEnemies() {
+    while (enemies.length) {
+      const e = enemies.pop();
+      if (e.el && e.el.isConnected) e.el.remove();
+    }
+  }
+
+  function updateStageHud() {
+    if (stageLabelEl) stageLabelEl.textContent = `第 ${stage} 关`;
+    if (stageTimeEl) {
+      const sec = Math.max(0, Math.ceil(stageTimeLeft));
+      stageTimeEl.textContent = String(sec);
+    }
+    if (stageTimerEl) {
+      stageTimerEl.classList.toggle("is-urgent", stageTimeLeft <= 5 && stageTimeLeft > 0);
+    }
+  }
+
+  function dropCoinsFromBoss(boss) {
+    const drops = 2 + ((Math.random() * 3) | 0) + Math.min(4, Math.max(0, stage - 1));
+    for (let i = 0; i < drops; i++) {
+      const ox = (Math.random() - 0.5) * 56;
+      const oy = 36 + Math.random() * 48;
+      addCoin(boss.x + ox, boss.y + oy);
+    }
+  }
+
+  function spawnWave(count) {
+    const plats = platforms.filter((p) => p.w >= 120);
+    if (!plats.length || count <= 0) return;
+    for (let i = 0; i < count; i++) {
+      const plat = plats[(Math.random() * plats.length) | 0];
+      let x = plat.x + 50 + Math.random() * Math.max(24, plat.w - 100);
+      x = Math.min(arenaMaxX(), Math.max(arenaMinX(), x));
+      if (Math.abs(x - hero.x) < 90) {
+        x = Math.min(arenaMaxX(), Math.max(arenaMinX(), hero.x + (i % 2 === 0 ? 140 : -140)));
+      }
+      addBoss(x, plat.h);
+    }
+    waveCooldown = 55 + ((Math.random() * 35) | 0);
+  }
+
+  function beginStage(n, resetCoins) {
+    stage = Math.max(1, n | 0);
+    stageBusy = false;
+    clearEnemies();
+    if (resetCoins) {
+      coinCount = 0;
+      drawCoinCount(formatCoins(0));
+    }
+    stageTimeLeft = stageDuration(stage);
+    stageClock = performance.now();
+    waveCooldown = 20;
+    if (stageTimerEl) stageTimerEl.hidden = false;
+    updateStageHud();
+    spawnWave(2);
+    showToast(`第 ${stage} 关 · ${stageDuration(stage)} 秒`, 1200);
+  }
+
+  function updateStageSystem() {
+    if (!running || paused || hero.dead || stageBusy) return;
+    const now = performance.now();
+    if (!stageClock) stageClock = now;
+    const dt = Math.min(0.05, (now - stageClock) / 1000);
+    stageClock = now;
+    stageTimeLeft -= dt;
+
+    if (stageTimeLeft <= 0) {
+      stageTimeLeft = 0;
+      updateStageHud();
+      stageBusy = true;
+      clearEnemies();
+      setTimeout(() => beginStage(stage + 1, false), 500);
+      return;
+    }
+
+    updateStageHud();
+    if (waveCooldown > 0) waveCooldown -= 1;
+    else if (livingEnemyCount() === 0) spawnWave(waveSizeForStage(stage));
+  }
+
   function clearTrack() {
     platforms.length = 0;
     coins.length = 0;
+    enemies.length = 0;
     trackWorld.innerHTML = "";
     nextX = 0;
+    lastGapAt = -9999;
+    lastBossAt = -9999;
+    flatStreak = 0;
     runScroll.world = 0;
+    viewFx.x = 0;
+    viewFx.y = 0;
     trackWorld.style.transform = "translate3d(0,0,0)";
+    runner.style.transform = "";
+    [runBackArt, runMidArt, runFrontArt].forEach((el) => {
+      if (el) el.style.transform = "translate3d(0,0,0)";
+    });
   }
 
-  function addPlatform(x, w, h) {
+  function addPlatform(x, unitCount, h) {
+    const units = Math.max(1, unitCount | 0);
+    /* 步进 = 整宽 - 侧面重叠，下一块叠在上一块侧面之上 */
+    const totalW = FLOOR_UNIT_W + Math.max(0, units - 1) * FLOOR_STEP;
+    const surfaceH = h - SURFACE_NUDGE;
     const el = document.createElement("div");
     el.className = "plat";
-    if (h >= 180) el.classList.add("plat--high");
-    else if (h <= 90) el.classList.add("plat--low");
+    el.style.setProperty("--floor-unit-w", `${FLOOR_UNIT_W}px`);
     el.style.left = `${x}px`;
-    el.style.width = `${w}px`;
-    el.style.height = `${h}px`;
-    el.innerHTML = '<div class="plat__cap"></div><div class="plat__dirt"></div>';
+    el.style.width = `${totalW}px`;
+    el.style.height = `${FLOOR_UNIT_H}px`;
+    /* 贴图按实体顶对齐；碰撞面再低 60px 到跑道中线 */
+    el.style.bottom = `${h - FLOOR_UNIT_H + floorTopPad}px`;
+    /* 右边永远盖住左边（只按 x，不按高度） */
+    el.style.zIndex = String(10 + Math.floor(x));
+
+    const row = document.createElement("div");
+    row.className = "plat__row";
+    for (let i = 0; i < units; i++) {
+      const tile = document.createElement("img");
+      tile.className = "plat__tile";
+      tile.src = floorImgUrl;
+      tile.alt = "";
+      tile.draggable = false;
+      tile.style.left = `${i * FLOOR_STEP}px`;
+      /* 段内同样：右侧单元压左侧 */
+      tile.style.zIndex = String(i + 1);
+      row.appendChild(tile);
+    }
+    el.appendChild(row);
     trackWorld.appendChild(el);
-    const plat = { x, w, h, el };
+    const plat = { x, w: totalW, h: surfaceH, visualH: h, units, el };
     platforms.push(plat);
     return plat;
+  }
+
+  /** 下一段与上一段侧面重叠衔接（非整段并排） */
+  function advanceNextX(plat) {
+    nextX = plat.x + plat.units * FLOOR_STEP;
   }
 
   function addCoin(x, y) {
@@ -385,55 +695,206 @@
   }
 
   function spawnCoinsOnPlat(plat) {
-    if (plat.w < 100 || Math.random() < 0.22) return;
-    const count = 3 + Math.floor(Math.random() * 4);
-    const start = plat.x + 36;
-    const span = Math.max(40, plat.w - 72);
-    const step = span / Math.max(1, count - 1);
-    const arc = Math.random() < 0.45;
+    if (plat.w < 160 || Math.random() < 0.28) return;
+    const pad = 48;
+    const span = Math.max(0, plat.w - pad * 2);
+    if (span < MIN_COIN_GAP) return;
+    const maxCount = Math.floor(span / MIN_COIN_GAP) + 1;
+    const count = Math.max(1, Math.min(3, maxCount));
+    const step = count === 1 ? 0 : Math.max(MIN_COIN_GAP, span / (count - 1));
+    const start = plat.x + pad;
+    const arc = Math.random() < 0.4;
     for (let i = 0; i < count; i++) {
       const cx = start + step * i;
-      const lift = arc ? Math.sin((i / (count - 1 || 1)) * Math.PI) * 42 : 18;
-      addCoin(cx, plat.h + 10 + lift);
+      const lift = arc ? Math.sin((i / (count - 1 || 1)) * Math.PI) * 36 : 22;
+      addCoin(cx, plat.h + 14 + lift);
+    }
+  }
+
+  function syncBossEl(boss) {
+    boss.el.style.left = `${boss.x}px`;
+    boss.el.style.bottom = `${boss.y}px`;
+    boss.el.classList.toggle("is-facing-left", boss.facing < 0);
+    boss.el.classList.toggle("is-hurt", boss.hurtFrames > 0);
+  }
+
+  function pickBossTargetX(boss) {
+    const pad = 50;
+    const nearby = platforms.filter(
+      (p) => Math.abs(p.x + p.w * 0.5 - boss.x) < 520 && p.w > 120
+    );
+    const pool = nearby.length ? nearby : platforms;
+    if (!pool.length) return boss.x;
+    const plat = pool[(Math.random() * pool.length) | 0];
+    const lo = Math.max(arenaMinX(), plat.x + pad);
+    const hi = Math.min(arenaMaxX(), plat.x + plat.w - pad);
+    if (hi <= lo) return Math.min(arenaMaxX(), Math.max(arenaMinX(), plat.x + plat.w * 0.5));
+    return lo + Math.random() * (hi - lo);
+  }
+
+  function addBoss(x, groundY) {
+    const y = groundY + ENEMY_Y_NUDGE;
+    const maxHp = bossHpForStage(stage);
+    const wrap = document.createElement("div");
+    wrap.className = "enemy boss";
+    wrap.style.left = `${x}px`;
+    wrap.style.bottom = `${y}px`;
+    wrap.style.zIndex = "8000";
+    const img = document.createElement("img");
+    img.className = "enemy__sprite";
+    img.src = enemyImgUrl;
+    img.alt = "天兵";
+    img.draggable = false;
+    const hpBar = document.createElement("div");
+    hpBar.className = "boss-hp";
+    if (stage >= 5) hpBar.classList.add("is-thicker");
+    else if (stage >= 3) hpBar.classList.add("is-thick");
+    hpBar.innerHTML = "<i></i>";
+    wrap.appendChild(hpBar);
+    wrap.appendChild(img);
+    trackWorld.appendChild(wrap);
+    const boss = {
+      x,
+      y,
+      vy: 0,
+      vx: 0,
+      facing: Math.random() < 0.5 ? -1 : 1,
+      w: 135,
+      h: 229,
+      el: wrap,
+      hpBar: hpBar.querySelector("i"),
+      dead: false,
+      hp: maxHp,
+      maxHp,
+      hurtFrames: 0,
+      think: 20 + ((Math.random() * 40) | 0),
+      targetX: x,
+      onGround: true,
+    };
+    enemies.push(boss);
+    lastBossAt = x;
+    renderBossHp(boss);
+    syncBossEl(boss);
+  }
+
+  function renderBossHp(boss) {
+    if (!boss.hpBar) return;
+    const pct = Math.max(0, boss.hp / (boss.maxHp || BOSS_MAX_HP));
+    boss.hpBar.style.transform = `scaleX(${pct})`;
+  }
+
+  function placeGap(minRatio) {
+    nextX += randomGap(minRatio);
+    lastGapAt = nextX;
+  }
+
+  function pickNextHeight(lastVisualH) {
+    let idx = HEIGHTS.indexOf(lastVisualH);
+    if (idx < 0) {
+      idx = 1;
+      let best = Infinity;
+      for (let i = 0; i < HEIGHTS.length; i++) {
+        const d = Math.abs(HEIGHTS[i] - lastVisualH);
+        if (d < best) {
+          best = d;
+          idx = i;
+        }
+      }
+    }
+    /* 平地过长则强制改高度（最长平地约为原先一半） */
+    const forceChange = flatStreak >= 1;
+    const roll = Math.random();
+    let next = idx;
+    if (!forceChange && roll < 0.18) {
+      next = idx;
+    } else if (roll < 0.5) {
+      next = Math.min(HEIGHTS.length - 1, idx + 1);
+    } else if (roll < 0.82) {
+      next = Math.max(0, idx - 1);
+    } else {
+      const jump = Math.random() < 0.5 ? 2 : -2;
+      next = Math.max(0, Math.min(HEIGHTS.length - 1, idx + jump));
+    }
+    if (forceChange && next === idx) {
+      next = idx >= HEIGHTS.length - 1 ? idx - 1 : idx + 1;
+    }
+    return HEIGHTS[next];
+  }
+
+  function viewWidth() {
+    return runway.clientWidth || 900;
+  }
+
+  function refreshArenaWidth() {
+    arenaWidth = Math.max(640, viewWidth() * ARENA_SCREEN_RATIO);
+  }
+
+  function arenaMinX() {
+    return ARENA_EDGE_PAD;
+  }
+
+  function arenaMaxX() {
+    return Math.max(arenaMinX() + 80, arenaWidth - ARENA_EDGE_PAD);
+  }
+
+  function clampActorX(actor) {
+    const lo = arenaMinX();
+    const hi = arenaMaxX();
+    if (actor.x < lo) {
+      actor.x = lo;
+      if (actor.vx < 0) actor.vx = 0;
+    } else if (actor.x > hi) {
+      actor.x = hi;
+      if (actor.vx > 0) actor.vx = 0;
     }
   }
 
   function generateSegment() {
+    if (nextX >= arenaWidth) return;
     const roll = Math.random();
-    /* 零缝测试时不能只加 gap 就 return，否则 nextX 不增长会死循环 */
-    if (!FORCE_ZERO_GAP && roll < 0.24 && nextX > 420) {
-      nextX += randomGap(0.45);
+    const canOptionalGap =
+      !FORCE_ZERO_GAP &&
+      nextX > 220 &&
+      nextX < arenaWidth - 220 &&
+      nextX - lastGapAt >= MIN_GAP_SPACING;
+    if (canOptionalGap && roll < 0.22) {
+      const gap = Math.min(randomGap(0.35), arenaWidth - nextX - 160);
+      if (gap > 24) {
+        nextX += gap;
+        lastGapAt = nextX;
+        flatStreak = 0;
+      }
       return;
     }
-    const lastH = platforms.length ? platforms[platforms.length - 1].h : 110;
-    let h = HEIGHTS[Math.floor(Math.random() * HEIGHTS.length)];
-    /* 升高地形前必须留缝：不跳就会掉，避免无缝高台把人堵住 */
-    if (h > lastH + 4) {
-      nextX += randomGap(0.4);
-    } else if (lastH - h > 40) {
-      nextX += randomGap(0.3);
-    } else if (Math.random() < 0.18 && nextX > 420) {
-      nextX += randomGap(0.3);
-    }
-    const w = 150 + Math.floor(Math.random() * 240);
-    const plat = addPlatform(nextX, w, h);
+    const lastVisual = platforms.length
+      ? platforms[platforms.length - 1].visualH
+      : HEIGHTS[2];
+    const h = platforms.length ? pickNextHeight(lastVisual) : HEIGHTS[2];
+    /* 格斗场略宽一些，方便与 Boss 周旋 */
+    let units = Math.random() < 0.55 ? 2 : Math.random() < 0.82 ? 1 : 3;
+    /* 末段尽量接到场地右缘 */
+    const remain = arenaWidth - nextX;
+    if (remain < FLOOR_UNIT_W * 1.2) units = 1;
+    const plat = addPlatform(nextX, units, h);
+    if (platforms.length > 1 && h === lastVisual) flatStreak += 1;
+    else flatStreak = 0;
     spawnCoinsOnPlat(plat);
-    nextX += w;
+    advanceNextX(plat);
   }
 
-  function ensureTrackAhead() {
-    const need = runScroll.world + (runway.clientWidth || 900) + 900;
-    while (nextX < need) generateSegment();
-  }
-
-  function pruneTrack() {
-    const cut = runScroll.world - 280;
-    while (platforms.length && platforms[0].x + platforms[0].w < cut) {
-      platforms.shift().el.remove();
-    }
-    while (coins.length && (coins[0].got || coins[0].x < cut)) {
-      const c = coins.shift();
-      if (c.el.isConnected) c.el.remove();
+  /** 一次性铺满约 1.5 屏的有限场地，不再无限延伸 */
+  function buildArena() {
+    refreshArenaWidth();
+    let guard = 0;
+    while (nextX < arenaWidth && guard++ < 120) generateSegment();
+    if (!platforms.length) {
+      addPlatform(0, 3, HEIGHTS[2]);
+    } else {
+      const last = platforms[platforms.length - 1];
+      const end = last.x + last.w;
+      if (end < arenaWidth - 40) {
+        addPlatform(Math.max(nextX, end - FLOOR_STEP), 2, last.visualH);
+      }
     }
   }
 
@@ -476,37 +937,290 @@
     return best;
   }
 
+  function syncHeroEl() {
+    runner.style.left = `${hero.x - runScroll.world}px`;
+    runner.style.bottom = `${hero.y}px`;
+    runner.classList.toggle("is-facing-left", hero.facing < 0);
+    const moving = Math.abs(hero.vx) > 0.2 && hero.onGround;
+    runner.classList.toggle("is-moving", moving);
+  }
+
+  function updateParallax() {
+    const viewW = viewWidth();
+    const shift = viewW * 0.16;
+
+    const place = (el, depthX, depthY) => {
+      if (!el) return;
+      const x = -viewFx.x * shift * depthX;
+      const y = -viewFx.y * depthY;
+      el.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`;
+    };
+
+    place(runBackArt, 0.22, 0.18);
+    place(runMidArt, 0.62, 0.45);
+    place(runFrontArt, 1.08, 0.82);
+  }
+
+  function updateCamera() {
+    const viewW = viewWidth();
+    const maxCam = Math.max(0, arenaWidth - viewW);
+    const focus = Math.min(maxCam, Math.max(0, hero.x - viewW * 0.38));
+    /* 水平镜头平滑跟随人物 */
+    runScroll.world += (focus - runScroll.world) * 0.16;
+    if (runScroll.world < 0) runScroll.world = 0;
+    if (runScroll.world > maxCam) runScroll.world = maxCam;
+
+    const maxCamSafe = Math.max(1, maxCam);
+    const camT = runScroll.world / maxCamSafe;
+    const span = Math.max(1, arenaMaxX() - arenaMinX());
+    const heroT = Math.min(1, Math.max(0, (hero.x - arenaMinX()) / span));
+    const targetX = camT * 0.35 + heroT * 0.65 - 0.5;
+
+    /* 垂直只做很弱、很慢的跟随，跳跃不会扯动整场 */
+    const yBase = 110;
+    const targetY = Math.min(8, Math.max(-4, (hero.y - yBase) * 0.04));
+
+    viewFx.x += (targetX - viewFx.x) * 0.1;
+    viewFx.y += (targetY - viewFx.y) * 0.05;
+
+    trackWorld.style.transform = `translate3d(${(-runScroll.world).toFixed(2)}px, 0, 0)`;
+    runner.style.transform = "";
+    updateParallax();
+  }
+
   function resetHeroOnTrack() {
-    hero.y = 110;
     hero.vy = 0;
+    hero.vx = 0;
     hero.onGround = true;
     hero.dead = false;
     hero.jumpsLeft = MAX_JUMPS;
-    runner.classList.remove("is-air");
-    const hx = runScroll.world + heroScreenX() + 40;
-    const s = surfaceAt(hx);
-    if (s != null) hero.y = s;
-    runner.style.bottom = `${hero.y}px`;
+    hero.attackFrames = 0;
+    hero.hurtFrames = 0;
+    hero.facing = 1;
+    runner.classList.remove("is-air", "is-attacking", "is-hurt", "is-moving");
+    if (!platforms.length) {
+      hero.x = 180;
+      hero.y = 110;
+    } else {
+      const rescue =
+        platforms.find((p) => p.x + p.w > hero.x - 40) || platforms[0];
+      hero.x = rescue.x + Math.min(120, rescue.w * 0.35);
+      hero.y = rescue.h;
+    }
+    updateCamera();
+    syncHeroEl();
+    stageClock = performance.now();
+  }
+
+  function setPaused(on) {
+    if (!running) return;
+    paused = !!on;
+    runway.classList.toggle("is-paused", paused);
+    if (pauseOverlay) pauseOverlay.hidden = !paused;
+    if (!paused) stageClock = performance.now();
+  }
+
+  function togglePause() {
+    if (!running) return;
+    setPaused(!paused);
   }
 
   function tryJump() {
-    if (!running || hero.dead || hero.jumpsLeft <= 0) return;
+    if (!running || paused || hero.dead || hero.jumpsLeft <= 0) return;
     hero.vy = JUMP_V;
     hero.jumpsLeft -= 1;
     hero.onGround = false;
     runner.classList.add("is-air");
+    sfxJump();
   }
 
-  function collectCoins(heroWorldX) {
-    const hx = heroWorldX;
+  function tryAttack() {
+    if (!running || paused || hero.dead || hero.attackFrames > 0) return;
+    hero.attackFrames = ATTACK_FRAMES;
+    /* 重触发 CSS 挥扇动画 */
+    runner.classList.remove("is-attacking");
+    void runner.offsetWidth;
+    runner.classList.add("is-attacking");
+    sfxAttack();
+  }
+
+  function takeDamage(amount) {
+    if (hero.hurtFrames > 0 || hero.dead) return;
+    hero.hp = Math.max(0, hero.hp - amount);
+    hero.hurtFrames = HURT_IFRAMES;
+    runner.classList.add("is-hurt");
+    renderHp();
+    sfxHit();
+    if (hero.hp <= 0) {
+      hero.dead = true;
+      setTimeout(() => {
+        hero.hp = MAX_HP;
+        renderHp();
+        resetHeroOnTrack();
+      }, 450);
+    }
+  }
+
+  function defeatBoss(boss) {
+    if (boss.dead) return;
+    boss.dead = true;
+    boss.el.classList.add("is-dead");
+    dropCoinsFromBoss(boss);
+    sfxHit();
+    sfxCoin();
+    setTimeout(() => {
+      if (boss.el.isConnected) boss.el.remove();
+    }, 360);
+  }
+
+  function hurtBoss(boss, amount) {
+    if (boss.dead || boss.hurtFrames > 0) return;
+    boss.hp = Math.max(0, boss.hp - amount);
+    boss.hurtFrames = BOSS_HURT_FRAMES;
+    boss.vx = -boss.facing * 1.2;
+    renderBossHp(boss);
+    sfxHit();
+    if (boss.hp <= 0) defeatBoss(boss);
+  }
+
+  function applyActorPhysics(actor, halfW, yNudge = 0) {
+    const prevY = actor.y;
+    actor.vy -= GRAVITY;
+    actor.y += actor.vy;
+    actor.x += actor.vx;
+    clampActorX(actor);
+
+    const feetLeft = actor.x - halfW;
+    const feetRight = actor.x + halfW;
+    actor.onGround = false;
+    if (actor.vy <= 0) {
+      const surface = findLandingSurface(
+        prevY - yNudge,
+        actor.y - yNudge,
+        feetLeft,
+        feetRight
+      );
+      if (surface != null) {
+        actor.y = surface + yNudge;
+        actor.vy = 0;
+        actor.onGround = true;
+      }
+    }
+  }
+
+  function updateBosses() {
+    for (let i = 0; i < enemies.length; i++) {
+      const e = enemies[i];
+      if (e.dead) continue;
+
+      if (e.hurtFrames > 0) {
+        e.hurtFrames -= 1;
+        e.vx *= 0.86;
+      } else {
+        e.think -= 1;
+        if (e.think <= 0) {
+          const roll = Math.random();
+          if (roll < 0.22) {
+            e.vx = 0;
+            e.think = 25 + ((Math.random() * 35) | 0);
+          } else if (roll < 0.34 && e.onGround) {
+            e.vy = JUMP_V * 0.72;
+            e.onGround = false;
+            e.targetX = pickBossTargetX(e);
+            e.think = 40 + ((Math.random() * 30) | 0);
+          } else {
+            e.targetX = pickBossTargetX(e);
+            e.think = 45 + ((Math.random() * 55) | 0);
+          }
+        }
+        const dx = e.targetX - e.x;
+        if (Math.abs(dx) > 8) {
+          e.facing = dx < 0 ? -1 : 1;
+          e.vx = e.facing * BOSS_MOVE;
+        } else {
+          e.vx = 0;
+        }
+      }
+
+      applyActorPhysics(e, e.w * 0.28, ENEMY_Y_NUDGE);
+
+      /* 走到台沿外：掉头或换目标 */
+      if (e.onGround) {
+        const ahead = e.x + e.facing * 28;
+        if (surfaceAt(ahead) == null) {
+          e.facing *= -1;
+          e.targetX = pickBossTargetX(e);
+          e.vx = e.facing * BOSS_MOVE;
+        }
+      }
+
+      if (e.y < -120) {
+        const rescue = platforms.find((p) => p.x + p.w > e.x) || platforms[platforms.length - 1];
+        if (rescue) {
+          e.x = rescue.x + rescue.w * 0.5;
+          e.y = rescue.h + ENEMY_Y_NUDGE;
+          e.vy = 0;
+        }
+      }
+
+      syncBossEl(e);
+    }
+  }
+
+  function updateCombat(heroW) {
+    if (hero.attackFrames > 0) {
+      hero.attackFrames -= 1;
+      if (hero.attackFrames <= 0) runner.classList.remove("is-attacking");
+    }
+    if (hero.hurtFrames > 0) {
+      hero.hurtFrames -= 1;
+      if (hero.hurtFrames <= 0) runner.classList.remove("is-hurt");
+    }
+
+    const feetCenter = hero.x;
+    const heroLeft = feetCenter - heroW * 0.28;
+    const heroRight = feetCenter + heroW * 0.32;
+    const heroBottom = hero.y;
+    const heroTop = hero.y + 78;
+    const arcOx = feetCenter + hero.facing * heroW * 0.12;
+    const arcOy = hero.y + 46;
+    const attacking = hero.attackFrames > 0;
+
+    for (let i = 0; i < enemies.length; i++) {
+      const e = enemies[i];
+      if (e.dead) continue;
+      const eLeft = e.x - e.w * 0.45;
+      const eRight = e.x + e.w * 0.45;
+      const eBottom = e.y;
+      const eTop = e.y + e.h;
+      const eCx = e.x;
+      const eCy = e.y + e.h * 0.42;
+
+      if (attacking && pointInFanArc(arcOx, arcOy, eCx, eCy, hero.facing)) {
+        hurtBoss(e, PLAYER_ATK);
+      }
+
+      const vertOk = heroBottom < eTop - 8 && heroTop > eBottom + 8;
+      const bodyHit =
+        vertOk &&
+        eRight > heroLeft &&
+        eLeft < heroRight &&
+        Math.abs((eBottom + eTop) / 2 - (heroBottom + heroTop) / 2) < 70;
+      if (bodyHit) takeDamage(HIT_DAMAGE);
+    }
+  }
+
+  function collectCoins() {
+    const hx = hero.x;
     const hy = hero.y;
     for (const c of coins) {
       if (c.got) continue;
-      if (Math.abs(c.x - hx) < 34 && Math.abs(c.y - (hy + 36)) < 44) {
+      if (Math.abs(c.x - hx) < 48 && Math.abs(c.y - (hy + 44)) < 58) {
         c.got = true;
         c.el.classList.add("is-got");
         coinCount += 1;
         drawCoinCount(formatCoins(coinCount));
+        sfxCoin();
         setTimeout(() => c.el.remove(), 280);
       }
     }
@@ -514,12 +1228,14 @@
 
   function initTrack() {
     clearTrack();
-    coinCount = 0;
-    drawCoinCount(formatCoins(0));
-    addPlatform(0, 520, 110);
-    nextX = 520;
-    ensureTrackAhead();
+    hero.hp = MAX_HP;
+    hero.x = 180;
+    renderHp();
+    const start = addPlatform(0, 3, HEIGHTS[2]);
+    advanceNextX(start);
+    buildArena();
     resetHeroOnTrack();
+    beginStage(1, true);
   }
 
   async function replacePunched(imgEl) {
@@ -591,12 +1307,18 @@
 
   async function enterRunMode() {
     started = true;
-    await Promise.all([setRunnerSprite(selected), prepareCoinArt()]);
+    await Promise.all([
+      setRunnerSprite(selected),
+      prepareCoinArt(),
+      prepareEnemyArt(),
+      prepareFloorArt(),
+    ]);
     runway.hidden = false;
     game.classList.add("is-running");
-    runner.classList.add("is-running");
+    runner.classList.add("is-fighting");
     initTrack();
     running = true;
+    setPaused(false);
     if (!loadingPage.hidden) await hideLoadingPage();
   }
 
@@ -622,54 +1344,43 @@
     cursor.classList.add("is-on");
   }
 
-  function tickSideRun() {
+  function tickFight() {
     if (hero.dead) return;
 
-    runScroll.world += SPEED;
-    runScroll.back += SPEED * 0.22;
-    runScroll.mid += SPEED * 0.48;
-    trackWorld.style.transform = `translate3d(${-runScroll.world}px, 0, 0)`;
-    runBack.style.backgroundPosition = `${-runScroll.back}px 38%`;
-    runMid.style.backgroundPosition = `${-runScroll.mid}px 70%`;
+    if (!paused) {
+      let move = 0;
+      if (keys.a) move -= 1;
+      if (keys.d) move += 1;
+      hero.vx = move * MOVE_SPEED;
+      if (move !== 0) hero.facing = move;
 
-    ensureTrackAhead();
-    pruneTrack();
+      /* S：贴地时略下蹲减速，便于近战走位 */
+      const speedScale = keys.s && hero.onGround ? 0.55 : 1;
+      hero.vx *= speedScale;
 
-    const heroW = runner.offsetWidth || 90;
-    const feetCenter = runScroll.world + heroScreenX() + heroW * 0.5;
-    const feetLeft = feetCenter - heroW * 0.42;
-    const feetRight = feetCenter + heroW * 0.42;
-    const prevY = hero.y;
-    hero.vy -= GRAVITY;
-    hero.y += hero.vy;
+      applyActorPhysics(hero, (runner.offsetWidth || 90) * 0.42);
+      if (hero.onGround) hero.jumpsLeft = MAX_JUMPS;
 
-    hero.onGround = false;
-    if (hero.vy <= 0) {
-      const surface = findLandingSurface(prevY, hero.y, feetLeft, feetRight);
-      if (surface != null) {
-        hero.y = surface;
-        hero.vy = 0;
-        hero.onGround = true;
-        hero.jumpsLeft = MAX_JUMPS;
-      }
+      if (hero.onGround) runner.classList.remove("is-air");
+      else runner.classList.add("is-air");
+
+      updateBosses();
+      updateStageSystem();
     }
 
-    if (hero.onGround) runner.classList.remove("is-air");
-    else runner.classList.add("is-air");
+    updateCamera();
+    syncHeroEl();
 
-    runner.style.bottom = `${hero.y}px`;
-    collectCoins(feetCenter);
+    if (paused) return;
+
+    const heroW = runner.offsetWidth || 90;
+    collectCoins();
+    updateCombat(heroW);
 
     if (hero.y < -80) {
       hero.dead = true;
       setTimeout(() => {
-        const rescue = platforms.find((p) => p.x > feetCenter + 40) || platforms[platforms.length - 1];
-        if (rescue) {
-          runScroll.world = Math.max(0, rescue.x - heroScreenX() + 20);
-          trackWorld.style.transform = `translate3d(${-runScroll.world}px, 0, 0)`;
-        }
         resetHeroOnTrack();
-        ensureTrackAhead();
       }, 350);
     }
   }
@@ -692,7 +1403,7 @@
         layer.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`;
       }
     } else {
-      tickSideRun();
+      tickFight();
     }
 
     const press = cursor.classList.contains("is-press") ? " scale(0.88)" : "";
@@ -707,12 +1418,9 @@
       mouse.ty = 0.5;
       cursor.classList.remove("is-on");
     });
-    window.addEventListener("pointerdown", (e) => {
+    window.addEventListener("pointerdown", () => {
       cursor.classList.add("is-press");
-      if (running) {
-        e.preventDefault();
-        tryJump();
-      }
+      ensureAudio();
     });
     window.addEventListener("pointerup", () => cursor.classList.remove("is-press"));
 
@@ -720,16 +1428,60 @@
       btn.addEventListener("click", () => selectHero(btn.dataset.hero));
     });
     startBtn.addEventListener("click", startGame);
+
+    const keyMap = {
+      KeyW: "w",
+      KeyA: "a",
+      KeyS: "s",
+      KeyD: "d",
+      ArrowUp: "w",
+      ArrowLeft: "a",
+      ArrowDown: "s",
+      ArrowRight: "d",
+    };
+
     window.addEventListener("keydown", (e) => {
-      if (e.code === "Space" || e.code === "Enter") {
+      ensureAudio();
+      const moveKey = keyMap[e.code];
+      if (moveKey) {
+        keys[moveKey] = true;
+        if (running) e.preventDefault();
+      }
+      if (e.code === "KeyP" || e.code === "Escape") {
+        if (running) {
+          e.preventDefault();
+          togglePause();
+        }
+        return;
+      }
+      if (paused) return;
+      if (e.code === "Space" || e.code === "KeyW" || e.code === "ArrowUp") {
+        if (running) {
+          e.preventDefault();
+          if (!e.repeat) tryJump();
+        } else if (e.code === "Space" || e.code === "Enter") {
+          e.preventDefault();
+          startGame();
+        }
+      } else if (e.code === "Enter") {
         e.preventDefault();
-        if (running) tryJump();
-        else startGame();
+        if (!running) startGame();
+      }
+      if (running && (e.code === "KeyJ" || e.code === "KeyF")) {
+        e.preventDefault();
+        tryAttack();
       }
       if (!running) {
         if (e.code === "ArrowLeft") selectHero("red");
         if (e.code === "ArrowRight") selectHero("blue");
       }
+    });
+    window.addEventListener("keyup", (e) => {
+      const moveKey = keyMap[e.code];
+      if (moveKey) keys[moveKey] = false;
+    });
+    window.addEventListener("blur", () => {
+      keys.w = keys.a = keys.s = keys.d = false;
     });
   }
 

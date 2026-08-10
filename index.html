@@ -33,6 +33,10 @@
         <img class="coin-icon" src="assets/money.png" alt="" draggable="false" />
         <canvas class="coin-count" id="coin-count" width="160" height="100" aria-label="金币 x000"></canvas>
       </div>
+      <div class="stage-timer" id="stage-timer" hidden>
+        <span class="stage-timer__label" id="stage-label">第 1 关</span>
+        <span class="stage-timer__time" id="stage-time">30</span>
+      </div>
       <div class="party">
         <div class="member">
           <img class="portrait" src="assets/little-red-head.png" alt="" data-punch="250" draggable="false" />
@@ -71,10 +75,17 @@
 
     <div id="toast" class="toast" hidden></div>
 
-    <section id="runway" class="runway" hidden aria-label="跑酷场地">
+    <section id="runway" class="runway" hidden aria-label="格斗场地">
       <div class="runway-sky" aria-hidden="true">
-        <div class="run-parallax run-parallax--back" id="run-back"></div>
-        <div class="run-parallax run-parallax--mid" id="run-mid"></div>
+        <div class="run-parallax run-parallax--back" id="run-back" title="远景">
+          <div class="run-parallax__art" style="background-image:url('assets/main/main_bg1.png')"></div>
+        </div>
+        <div class="run-parallax run-parallax--mid" id="run-mid" title="中景">
+          <div class="run-parallax__art" style="background-image:url('assets/main/main_bg2.png')"></div>
+        </div>
+        <div class="run-parallax run-parallax--front" id="run-front" title="近景">
+          <div class="run-parallax__art" style="background-image:url('assets/main/main_bg3.png')"></div>
+        </div>
       </div>
       <div class="runway-abyss" aria-hidden="true"></div>
       <div class="track-layer" id="track-layer">
@@ -83,8 +94,13 @@
       <div class="runner" id="runner">
         <div class="runner__shadow" aria-hidden="true"></div>
         <img class="runner__sprite" id="runner-sprite" alt="" width="128" height="128" draggable="false" />
+        <div class="fan-arc" id="fan-arc" aria-hidden="true"></div>
       </div>
-      <p class="run-hint">空格 / 点击 · 跳跃（可二连跳）</p>
+      <p class="run-hint">WASD 移动 · 空格跳 · J/F 扇击 · P/Esc 暂停</p>
+      <div id="pause-overlay" class="pause-overlay" hidden>
+        <p class="pause-overlay__title">暂停</p>
+        <p class="pause-overlay__hint">按 P / Esc 继续</p>
+      </div>
     </section>
   </div>
 

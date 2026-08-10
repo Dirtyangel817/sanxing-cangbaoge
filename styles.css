@@ -130,6 +130,38 @@ img, canvas {
   align-items: flex-start;
   padding: clamp(12px, 2.2vw, 22px);
   pointer-events: none;
+  z-index: 30;
+}
+
+.stage-timer {
+  position: absolute;
+  left: 50%;
+  top: clamp(10px, 2vw, 18px);
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  pointer-events: none;
+  text-shadow: 2px 2px 0 #000;
+}
+.stage-timer[hidden] { display: none !important; }
+.stage-timer__label {
+  font-family: "Press Start 2P", monospace;
+  font-size: clamp(9px, 1.6vw, 12px);
+  color: #e8d8a8;
+  letter-spacing: 0.12em;
+}
+.stage-timer__time {
+  font-family: "Press Start 2P", monospace;
+  font-size: clamp(22px, 4.5vw, 36px);
+  color: #ffe56a;
+  letter-spacing: 0.08em;
+  min-width: 2.2em;
+  text-align: center;
+}
+.stage-timer.is-urgent .stage-timer__time {
+  color: #ff6b6b;
+  animation: blink 0.55s steps(2, end) infinite;
 }
 
 .coin {
@@ -192,6 +224,11 @@ img, canvas {
     inset -1px -1px 0 #4ecf68,
     inset 1px 1px 0 #e8ffeC;
   image-rendering: pixelated;
+}
+.bar i.is-empty {
+  background: #2a2438;
+  box-shadow: inset 0 0 0 1px #1a1030;
+  opacity: 0.55;
 }
 
 .stage {
@@ -438,54 +475,54 @@ img, canvas {
   inset: 0;
   z-index: 4;
   overflow: hidden;
-  background: #120e2c;
+  background: #0a1428;
 }
 .runway[hidden] { display: none !important; }
 
 .runway-sky {
   position: absolute;
   inset: 0;
+  z-index: 1;
   overflow: hidden;
+  pointer-events: none;
+  background: #050816;
 }
 .run-parallax {
   position: absolute;
-  inset: 0 -20%;
-  background-repeat: repeat-x;
-  will-change: background-position;
+  inset: 0;
+  overflow: hidden;
+  will-change: transform;
+}
+.run-parallax__art {
+  position: absolute;
+  /* 四周多留余量，方便随人物/鼠标视角平移而不露边 */
+  inset: -8% -18%;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: 50% 42%;
   image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  will-change: transform;
 }
 .run-parallax--back {
   z-index: 1;
-  background-image: url("assets/background2.png");
-  background-size: auto 115%;
-  background-position: 0 38%;
-  filter: saturate(1.05) brightness(0.9);
 }
 .run-parallax--mid {
   z-index: 2;
-  background-image: url("assets/background1.png");
-  background-size: auto 100%;
-  background-position: 0 70%;
-  opacity: 0.95;
-  mask-image: linear-gradient(180deg, #000 35%, transparent 92%);
-  -webkit-mask-image: linear-gradient(180deg, #000 35%, transparent 92%);
+}
+.run-parallax--front {
+  z-index: 3;
+}
+/* 中景 / 近景：半屏×1.8≈90% 高，再略向下 */
+.run-parallax--mid .run-parallax__art,
+.run-parallax--front .run-parallax__art {
+  inset: -4% -22% -16% -22%;
+  background-size: auto 90%;
+  background-position: 50% 118%;
 }
 
 .runway-abyss {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 56px;
-  z-index: 3;
-  background:
-    linear-gradient(180deg, #1a103088, #05040f),
-    repeating-linear-gradient(
-      90deg,
-      #1a1030 0 16px,
-      #0c0a18 16px 32px
-    );
-  pointer-events: none;
+  display: none;
 }
 
 .track-layer {
@@ -503,51 +540,36 @@ img, canvas {
   will-change: transform;
 }
 
+/* floor1 地形单元拼接（侧面重叠） */
 .plat {
+  --floor-unit-w: 176px;
   position: absolute;
-  bottom: 0;
-  image-rendering: pixelated;
-  box-shadow: 3px 0 0 #1a103066;
+  overflow: visible;
+  pointer-events: none;
 }
-.plat__cap {
+.plat__row {
   position: absolute;
-  left: 0;
-  right: 0;
+  inset: 0;
+}
+.plat__tile {
+  position: absolute;
   top: 0;
-  height: 18px;
-  background:
-    repeating-linear-gradient(
-      90deg,
-      #6bcf4a 0 26px,
-      #57b83a 26px 32px
-    );
-  border-top: 3px solid #8ef06a;
-  border-bottom: 3px solid #2f6b1c;
-}
-.plat__dirt {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 18px;
-  bottom: 0;
-  background:
-    repeating-linear-gradient(90deg, #d08948 0 28px, #b86a2e 28px 32px),
-    repeating-linear-gradient(0deg, #d08948 0 22px, #a85a24 22px 26px);
-  background-blend-mode: multiply, normal;
-  box-shadow: inset 0 3px 0 #8a4a1c88;
-}
-.plat--high .plat__cap {
-  background: repeating-linear-gradient(90deg, #7ad65a 0 26px, #62c242 26px 32px);
-}
-.plat--low .plat__cap {
-  background: repeating-linear-gradient(90deg, #5bbf3c 0 26px, #4aa32e 26px 32px);
+  display: block;
+  width: var(--floor-unit-w);
+  height: 100%;
+  object-fit: fill;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  pointer-events: none;
+  -webkit-user-drag: none;
 }
 
 .pickup-coin {
   position: absolute;
-  width: 36px;
-  height: 36px;
-  margin-left: -18px;
+  width: 86px;
+  height: 86px;
+  margin-left: -43px;
+  z-index: 400;
   image-rendering: pixelated;
   filter: drop-shadow(1px 2px 0 #0008);
   animation: coin-spin 0.9s steps(4, end) infinite;
@@ -558,15 +580,184 @@ img, canvas {
   pointer-events: none;
 }
 
+.enemy {
+  position: absolute;
+  width: 203px;
+  margin-left: -102px;
+  transform-origin: 50% 100%;
+  /* 高于地形拼接 zIndex（10+x），保证天兵在平台前面 */
+  z-index: 8000;
+  pointer-events: none;
+}
+.enemy__sprite {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: drop-shadow(2px 2px 0 #0008);
+  transform-origin: 50% 100%;
+}
+.enemy.is-facing-left .enemy__sprite {
+  transform: scaleX(-1);
+}
+.enemy.is-hurt .enemy__sprite {
+  filter: drop-shadow(2px 2px 0 #0008) saturate(0.25) brightness(1.45);
+  animation: hurt-flash 0.1s steps(2, end) infinite;
+}
+.boss-hp {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  top: -14px;
+  height: 8px;
+  border: 2px solid #1a1028;
+  background: #2a1838;
+  box-shadow: 1px 1px 0 #0008;
+  overflow: hidden;
+}
+.boss-hp.is-thick {
+  height: 12px;
+  top: -18px;
+}
+.boss-hp.is-thicker {
+  height: 16px;
+  top: -22px;
+}
+.boss-hp i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #ff5a5a, #ffd36a);
+  transform-origin: left center;
+  transform: scaleX(1);
+}
+.enemy.is-dead {
+  animation: enemy-die 0.35s steps(3, end) forwards;
+}
+.runner.is-hurt .runner__sprite {
+  filter: drop-shadow(2px 2px 0 #0008) saturate(0.2) brightness(1.4);
+  animation: hurt-flash 0.12s steps(2, end) infinite;
+}
+.runner.is-attacking .runner__sprite {
+  animation: fan-pose 0.28s ease-out both !important;
+}
+.runner.is-facing-left .runner__sprite {
+  transform: scaleX(-1);
+}
+.runner.is-facing-left.is-attacking .runner__sprite {
+  animation: fan-pose-left 0.28s ease-out both !important;
+}
+.runner.is-facing-left .fan-arc {
+  left: auto;
+  right: 48%;
+  transform-origin: 92% 72%;
+  background: conic-gradient(
+    from 100deg at 92% 72%,
+    transparent 0deg 6deg,
+    #fff6c8ee 6deg 14deg,
+    #ffe56acc 14deg 34deg,
+    #6ad8ecbb 34deg 58deg,
+    #c9a0ff99 58deg 78deg,
+    transparent 78deg 360deg
+  );
+}
+.runner.is-facing-left.is-attacking .fan-arc {
+  animation: fan-sweep-left 0.32s ease-out both;
+}
+
+/* 扇子挥击弧：盖在角色上层，明显扫过 */
+.fan-arc {
+  --arc-r: 260px;
+  position: absolute;
+  left: 48%;
+  bottom: 22%;
+  width: var(--arc-r);
+  height: var(--arc-r);
+  transform-origin: 8% 72%;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 12;
+  background: conic-gradient(
+    from 200deg at 8% 72%,
+    transparent 0deg 6deg,
+    #fff6c8ee 6deg 14deg,
+    #ffe56acc 14deg 34deg,
+    #6ad8ecbb 34deg 58deg,
+    #c9a0ff99 58deg 78deg,
+    transparent 78deg 360deg
+  );
+  -webkit-mask-image: radial-gradient(
+    circle at 8% 72%,
+    transparent 0 10%,
+    #000 12% 86%,
+    transparent 88%
+  );
+  mask-image: radial-gradient(
+    circle at 8% 72%,
+    transparent 0 10%,
+    #000 12% 86%,
+    transparent 88%
+  );
+  filter: drop-shadow(0 0 8px #ffe56acc) drop-shadow(0 0 2px #fff);
+}
+.fan-arc::before {
+  content: "";
+  position: absolute;
+  inset: 18% 8% 8% 8%;
+  border-radius: 50%;
+  border: 5px solid transparent;
+  border-top-color: #fff8;
+  border-right-color: #ffe56add;
+  transform: rotate(18deg);
+  box-shadow: 0 0 10px #6ad8ec88;
+}
+.runner.is-attacking .fan-arc {
+  animation: fan-sweep 0.32s ease-out both;
+}
+
+@keyframes enemy-die {
+  0% { transform: scaleY(1) translateY(0); opacity: 1; filter: brightness(1.4); }
+  100% { transform: scaleY(0.2) translateY(20px); opacity: 0; filter: brightness(2); }
+}
+@keyframes hurt-flash {
+  50% { opacity: 0.35; }
+}
+@keyframes fan-pose {
+  0% { transform: translateX(0) rotate(0) scaleY(1); }
+  40% { transform: translateX(10px) rotate(-12deg) scaleY(0.96); }
+  100% { transform: translateX(4px) rotate(6deg) scaleY(1); }
+}
+@keyframes fan-sweep {
+  0% {
+    opacity: 0;
+    transform: rotate(-42deg) scale(0.55);
+  }
+  18% {
+    opacity: 1;
+    transform: rotate(-12deg) scale(0.92);
+  }
+  55% {
+    opacity: 1;
+    transform: rotate(18deg) scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(48deg) scale(1.12);
+  }
+}
+
 .runner {
   position: absolute;
   left: var(--hero-x);
   bottom: 96px;
-  z-index: 7;
+  z-index: 500;
   width: clamp(72px, 12vw, 110px);
+  overflow: visible;
   transform-origin: 50% 100%;
   pointer-events: none;
-  will-change: bottom;
+  will-change: left, bottom;
+  margin-left: -36px;
 }
 .runner__shadow {
   position: absolute;
@@ -587,10 +778,13 @@ img, canvas {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
-.runner.is-running:not(.is-air) .runner__sprite {
+.runner.is-moving:not(.is-air) .runner__sprite {
   animation: run-cycle 0.28s steps(2, end) infinite;
 }
-.runner.is-running:not(.is-air) .runner__shadow {
+.runner.is-facing-left.is-moving:not(.is-air) .runner__sprite {
+  animation: run-cycle-left 0.28s steps(2, end) infinite;
+}
+.runner.is-moving:not(.is-air) .runner__shadow {
   animation: run-shadow 0.28s steps(2, end) infinite;
 }
 .runner.is-air .runner__shadow { opacity: 0.35; transform: translateX(-50%) scaleX(0.65); }
@@ -614,10 +808,70 @@ img, canvas {
   animation: blink 1.4s steps(2, end) infinite;
 }
 
+.pause-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-content: center;
+  gap: 14px;
+  background: #0a0820cc;
+  pointer-events: none;
+}
+.pause-overlay[hidden] { display: none !important; }
+.pause-overlay__title {
+  font-family: "Press Start 2P", monospace;
+  font-size: clamp(18px, 4vw, 28px);
+  color: var(--gold);
+  text-align: center;
+  letter-spacing: 0.2em;
+  text-shadow: 2px 2px 0 #000;
+}
+.pause-overlay__hint {
+  font-family: "Press Start 2P", monospace;
+  font-size: 9px;
+  color: #c9b8ff;
+  text-align: center;
+  letter-spacing: 1px;
+  animation: blink 1.2s steps(2, end) infinite;
+}
+.runway.is-paused .runner.is-moving .runner__sprite,
+.runway.is-paused .pickup-coin {
+  animation-play-state: paused;
+}
+
 @keyframes run-cycle {
   0%   { transform: translateY(0) rotate(-4deg) scaleY(1); }
   50%  { transform: translateY(-8px) rotate(4deg) scaleY(0.95); }
   100% { transform: translateY(0) rotate(-4deg) scaleY(1); }
+}
+@keyframes run-cycle-left {
+  0%   { transform: scaleX(-1) translateY(0) rotate(4deg) scaleY(1); }
+  50%  { transform: scaleX(-1) translateY(-8px) rotate(-4deg) scaleY(0.95); }
+  100% { transform: scaleX(-1) translateY(0) rotate(4deg) scaleY(1); }
+}
+@keyframes fan-pose-left {
+  0% { transform: scaleX(-1) translateX(0) rotate(0) scaleY(1); }
+  40% { transform: scaleX(-1) translateX(10px) rotate(12deg) scaleY(0.96); }
+  100% { transform: scaleX(-1) translateX(4px) rotate(-6deg) scaleY(1); }
+}
+@keyframes fan-sweep-left {
+  0% {
+    opacity: 0;
+    transform: rotate(42deg) scale(0.55);
+  }
+  18% {
+    opacity: 1;
+    transform: rotate(12deg) scale(0.92);
+  }
+  55% {
+    opacity: 1;
+    transform: rotate(-18deg) scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(-48deg) scale(1.12);
+  }
 }
 @keyframes run-shadow {
   0%, 100% { transform: translateX(-50%) scaleX(1); opacity: 0.8; }
@@ -634,5 +888,8 @@ img, canvas {
 
 @media (max-width: 560px) {
   .runner { width: clamp(64px, 22vw, 92px); }
-  .pickup-coin { width: 30px; height: 30px; margin-left: -15px; }
+  .pickup-coin { width: 70px; height: 70px; margin-left: -35px; }
+  .enemy { width: 166px; margin-left: -83px; }
+  .runner { margin-left: -32px; }
+  .fan-arc { --arc-r: 220px; }
 }
