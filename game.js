@@ -61,9 +61,9 @@
   /* 天兵与主角同高站立，不再额外抬高 */
   const ENEMY_Y_NUDGE = 0;
   const MOVE_SPEED = 9.5;
-  const GRAVITY = 1.45;
-  /* 相对初始重力抬高初速，高度大致不变，但滞空更短 */
-  const JUMP_V = 13.5 * Math.SQRT2 * Math.sqrt(GRAVITY / 0.72);
+  const GRAVITY = 1.7;
+  /* 相对初始设定，一段跳高度约为原来的一半 */
+  const JUMP_V = 13.5 * Math.SQRT2 * Math.sqrt(GRAVITY / (0.72 * 2));
   const MAX_JUMPS = 2;
   const LAND_TOL = 14;
   const MAX_WALK_STEP = 3;
