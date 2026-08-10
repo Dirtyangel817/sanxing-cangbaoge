@@ -579,10 +579,10 @@
     playTone({ freq: 180, dur: 0.08, type: "square", vol: 0.07, slide: 90 });
   }
 
-  /** 掉命：游戏机按键音（两声短促方波） */
+  /** 掉命：清脆游戏机按键音（两声短促高音方波） */
   function sfxLifeLost() {
-    playTone({ freq: 520, dur: 0.06, type: "square", vol: 0.09, slide: 260 });
-    playTone({ freq: 380, dur: 0.07, type: "square", vol: 0.08, slide: 180, delay: 0.12 });
+    playTone({ freq: 1568, dur: 0.045, type: "square", vol: 0.07, slide: 1880 });
+    playTone({ freq: 2093, dur: 0.05, type: "square", vol: 0.065, slide: 2480, delay: 0.1 });
   }
 
   function flashPortraitOnLifeLost() {
