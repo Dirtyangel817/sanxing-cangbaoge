@@ -198,6 +198,7 @@ img, canvas {
   align-items: center;
 }
 .member { display: flex; align-items: center; gap: 8px; }
+.member[hidden] { display: none !important; }
 .portrait {
   width: 100px; height: 100px;
   object-fit: contain;
@@ -230,6 +231,15 @@ img, canvas {
   box-shadow: inset 0 0 0 1px #1a1030;
   opacity: 0.55;
 }
+.lives {
+  font-family: "Press Start 2P", monospace;
+  font-size: 12px;
+  color: #ffe56a;
+  text-shadow: 1px 1px 0 #000;
+  letter-spacing: 0.04em;
+  min-width: 2.4em;
+}
+.lives__n { color: #fff8d8; }
 
 .stage {
   inset: 0;

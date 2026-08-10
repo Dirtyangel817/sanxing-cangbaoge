@@ -73,6 +73,7 @@
   const GAP_SAFE_RATIO = 0.75;
   const FORCE_ZERO_GAP = false;
   const MAX_HP = 20;
+  const START_LIVES = 3;
   const HIT_DAMAGE = 3;
   const PLAYER_ATK = 4;
   const BOSS_MAX_HP = 16;
@@ -196,6 +197,7 @@
   let lastBossAt = -9999;
   let flatStreak = 0;
   let selected = "blue";
+  let heroLives = START_LIVES;
   let started = false;
   let running = false;
   let paused = false;
@@ -624,9 +626,8 @@
   }
 
   function activeHpBar() {
-    const members = document.querySelectorAll(".party .member .bar");
-    const idx = selected === "red" ? 0 : 1;
-    return members[idx] || members[0];
+    const member = document.querySelector(`.party .member[data-hero="${selected}"]`);
+    return member ? member.querySelector(".bar") : null;
   }
 
   function renderHp() {
@@ -636,6 +637,22 @@
     pills.forEach((el, i) => {
       el.classList.toggle("is-empty", i >= hero.hp);
     });
+  }
+
+  function renderLives() {
+    document.querySelectorAll(".party .member").forEach((member) => {
+      const n = member.querySelector(".lives__n");
+      if (n) n.textContent = String(Math.max(0, heroLives));
+    });
+  }
+
+  function syncPartyHud() {
+    document.querySelectorAll(".party .member").forEach((member) => {
+      const on = member.dataset.hero === selected;
+      member.hidden = !on;
+    });
+    renderHp();
+    renderLives();
   }
 
   function heroScreenX() {
@@ -1529,6 +1546,30 @@
     return did;
   }
 
+  function loseLifeAndRespawn(delay = 450) {
+    hero.dead = true;
+    heroLives = Math.max(0, heroLives - 1);
+    renderLives();
+    if (heroLives <= 0) {
+      showToast("命数耗尽……", 1400);
+      setTimeout(() => {
+        hero.hp = MAX_HP;
+        heroLives = START_LIVES;
+        renderHp();
+        renderLives();
+        resetHeroOnTrack();
+        showToast("重整旗鼓，再闯宝阁！", 1200);
+      }, 900);
+      return;
+    }
+    showToast(`剩余命数 x${heroLives}`, 900);
+    setTimeout(() => {
+      hero.hp = MAX_HP;
+      renderHp();
+      resetHeroOnTrack();
+    }, delay);
+  }
+
   function takeDamage(amount) {
     if (hero.hurtFrames > 0 || hero.dead) return;
     hero.hp = Math.max(0, hero.hp - amount);
@@ -1536,14 +1577,7 @@
     runner.classList.add("is-hurt");
     renderHp();
     sfxHit();
-    if (hero.hp <= 0) {
-      hero.dead = true;
-      setTimeout(() => {
-        hero.hp = MAX_HP;
-        renderHp();
-        resetHeroOnTrack();
-      }, 450);
-    }
+    if (hero.hp <= 0) loseLifeAndRespawn(450);
   }
 
   function defeatBoss(boss) {
@@ -1790,10 +1824,13 @@
       btn.classList.toggle("is-active", on);
       btn.setAttribute("aria-pressed", on ? "true" : "false");
     });
+    syncPartyHud();
   }
 
   async function enterRunMode() {
     started = true;
+    heroLives = START_LIVES;
+    syncPartyHud();
     await Promise.all([
       setRunnerSprite(selected),
       prepareCoinArt(),
@@ -1865,10 +1902,7 @@
     updateCombat(heroW);
 
     if (hero.y < -80) {
-      hero.dead = true;
-      setTimeout(() => {
-        resetHeroOnTrack();
-      }, 350);
+      if (!hero.dead) loseLifeAndRespawn(350);
     }
   }
 
@@ -2021,6 +2055,7 @@
     bind();
     requestAnimationFrame(tick);
     drawCoinCount("x000");
+    syncPartyHud();
 
     if (SKIP_INTRO) {
       boot.remove();

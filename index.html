@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Tiny5&family=Silkscreen:wght@400;700&family=ZCOOL+QingKe+HuangYou&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=manual1" />
+  <link rel="stylesheet" href="styles.css?v=lives1" />
 </head>
 <body>
   <div id="boot" class="boot"><p class="boot-text">LOADING...</p></div>
@@ -39,14 +39,16 @@
         <span class="stage-timer__label" id="stage-label">第 1 关</span>
         <span class="stage-timer__time" id="stage-time">30</span>
       </div>
-      <div class="party">
-        <div class="member">
-          <img class="portrait" src="assets/little-red-head.png" alt="" data-punch="250" draggable="false" />
+      <div class="party" id="party">
+        <div class="member" data-hero="red" hidden>
+          <img class="portrait" src="assets/little-red-head.png" alt="钟离权" data-punch="250" draggable="false" />
           <span class="bar" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+          <span class="lives" aria-label="剩余命数">x<span class="lives__n">3</span></span>
         </div>
-        <div class="member">
-          <img class="portrait" src="assets/little-blue-head.png" alt="" data-punch="250" draggable="false" />
+        <div class="member" data-hero="blue">
+          <img class="portrait" src="assets/little-blue-head.png" alt="吕洞宾" data-punch="250" draggable="false" />
           <span class="bar" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+          <span class="lives" aria-label="剩余命数">x<span class="lives__n">3</span></span>
         </div>
       </div>
     </header>
@@ -165,6 +167,6 @@
     <p class="loading-page__text">LOADING...</p>
   </div>
 
-  <script src="combat.js?v=noauto2"></script>
+  <script src="combat.js?v=lives1"></script>
 </body>
 </html>
