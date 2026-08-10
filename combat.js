@@ -75,13 +75,24 @@
   const MAX_WALK_STEP = 3;
   const GAP_SAFE_RATIO = 0.75;
   const FORCE_ZERO_GAP = false;
-  const MAX_HP = 20;
+  const MAX_HP = 100;
   const START_LIVES = 3;
-  const HIT_DAMAGE = 3;
-  const PLAYER_ATK = 4;
-  const BOSS_MAX_HP = 16;
+  const PLAYER_ATK = 20;
   const BOSS_MOVE = 2.1;
   const BOSS_HURT_FRAMES = 18;
+  /** 各关普通怪：血量 / 攻击 / 本关刷新总数 */
+  const STAGE_MOB = {
+    1: { hp: 30, atk: 5, count: 6 },
+    2: { hp: 36, atk: 6, count: 8 },
+    3: { hp: 42, atk: 7, count: 10 },
+    4: { hp: 50, atk: 8, count: 12 },
+    5: { hp: 60, atk: 9, count: 14 },
+    6: { hp: 70, atk: 10, count: 16 },
+    7: { hp: 82, atk: 11, count: 18 },
+    8: { hp: 95, atk: 13, count: 20 },
+    9: { hp: 110, atk: 15, count: 22 },
+    10: { hp: 130, atk: 18, count: 24 },
+  };
   const ATTACK_FRAMES = 26;
   const HURT_IFRAMES = 45;
   const ATTACK_REACH = 96 * 3;
@@ -213,6 +224,8 @@
   let inShop = false;
   let shopFocus = -1;
   let pendingNextStage = 2;
+  let stageSpawned = 0;
+  let stageEnemyTotal = 0;
   const buffs = { atk: 0, reach: 0, speed: 0 };
   const shopBought = { baojian: 0, bajiaoshan: 0, fenghuolun: 0 };
   let coinImgUrl = COIN_SRC;
@@ -685,8 +698,10 @@
     const bar = activeHpBar();
     if (!bar) return;
     const pills = bar.querySelectorAll("i");
+    const n = pills.length || 1;
+    const filled = Math.ceil((Math.max(0, hero.hp) / MAX_HP) * n);
     pills.forEach((el, i) => {
-      el.classList.toggle("is-empty", i >= hero.hp);
+      el.classList.toggle("is-empty", i >= filled);
     });
   }
 
@@ -1024,15 +1039,30 @@
     return 60;
   }
 
-  function bossHpForStage(n) {
-    return Math.round(BOSS_MAX_HP * (1 + (n - 1) * 0.5));
+  function stageMobStats(n) {
+    const s = Math.max(1, n | 0);
+    if (STAGE_MOB[s]) return STAGE_MOB[s];
+    const base = STAGE_MOB[10];
+    const extra = s - 10;
+    return {
+      hp: Math.round(base.hp + extra * 22),
+      atk: Math.round(base.atk + extra * 3),
+      count: base.count + extra * 2,
+    };
   }
 
-  /** 后续波次数量：关卡越高越多 */
+  function bossHpForStage(n) {
+    return stageMobStats(n).hp;
+  }
+
+  function bossAtkForStage(n) {
+    return stageMobStats(n).atk;
+  }
+
+  /** 单波刷怪数量（不超过本关剩余配额） */
   function waveSizeForStage(n) {
-    const base = 2 + Math.floor((n - 1) * 0.85);
-    const bonus = (Math.random() * (1.2 + n * 0.45)) | 0;
-    return Math.min(10, Math.max(2, base + bonus));
+    const total = stageMobStats(n).count;
+    return Math.min(4, Math.max(2, Math.ceil(total / 3)));
   }
 
   function livingEnemyCount() {
@@ -1072,6 +1102,8 @@
 
   function spawnWave(count) {
     const plats = platforms.filter((p) => p.w >= 120);
+    const left = Math.max(0, stageEnemyTotal - stageSpawned);
+    count = Math.min(count | 0, left);
     if (!plats.length || count <= 0) return;
     for (let i = 0; i < count; i++) {
       const plat = plats[(Math.random() * plats.length) | 0];
@@ -1081,6 +1113,7 @@
         x = Math.min(arenaMaxX(), Math.max(arenaMinX(), hero.x + (i % 2 === 0 ? 140 : -140)));
       }
       addBoss(x, plat.h);
+      stageSpawned += 1;
     }
     waveCooldown = 55 + ((Math.random() * 35) | 0);
   }
@@ -1097,14 +1130,17 @@
       resetRunBuffs();
       grantStartingLoadout();
     }
+    const mob = stageMobStats(stage);
+    stageEnemyTotal = mob.count;
+    stageSpawned = 0;
     stageTimeLeft = stageDuration(stage);
     stageClock = performance.now();
     waveCooldown = 20;
     if (stageTimerEl) stageTimerEl.hidden = false;
     if (bagBtn) bagBtn.hidden = false;
     updateStageHud();
-    spawnWave(2);
-    showToast(`第 ${stage} 关 · ${stageDuration(stage)} 秒`, 1200);
+    spawnWave(waveSizeForStage(stage));
+    showToast(`第 ${stage} 关 · 天兵×${mob.count}`, 1200);
   }
 
   function updateStageSystem() {
@@ -1127,7 +1163,9 @@
 
     updateStageHud();
     if (waveCooldown > 0) waveCooldown -= 1;
-    else if (livingEnemyCount() === 0) spawnWave(waveSizeForStage(stage));
+    else if (livingEnemyCount() === 0 && stageSpawned < stageEnemyTotal) {
+      spawnWave(waveSizeForStage(stage));
+    }
   }
 
   function clearTrack() {
@@ -1256,7 +1294,8 @@
 
   function addBoss(x, groundY) {
     const y = groundY + ENEMY_Y_NUDGE;
-    const maxHp = bossHpForStage(stage);
+    const mob = stageMobStats(stage);
+    const maxHp = mob.hp;
     const wrap = document.createElement("div");
     wrap.className = "enemy boss";
     wrap.style.transform = `translate3d(${(x + 0.5) | 0}px, ${-((y + 0.5) | 0)}px, 0)`;
@@ -1287,6 +1326,7 @@
       dead: false,
       hp: maxHp,
       maxHp,
+      atk: mob.atk,
       hurtFrames: 0,
       think: 20 + ((Math.random() * 40) | 0),
       targetX: x,
@@ -1304,7 +1344,7 @@
 
   function renderBossHp(boss) {
     if (!boss.hpBar) return;
-    const pct = Math.max(0, boss.hp / (boss.maxHp || BOSS_MAX_HP));
+    const pct = Math.max(0, boss.hp / (boss.maxHp || 1));
     boss.hpBar.style.transform = `scaleX(${pct})`;
   }
 
@@ -1899,7 +1939,7 @@
         eRight > heroLeft &&
         eLeft < heroRight &&
         Math.abs((eBottom + eTop) / 2 - (heroBottom + heroTop) / 2) < 70;
-      if (bodyHit) takeDamage(HIT_DAMAGE);
+      if (bodyHit) takeDamage(e.atk || bossAtkForStage(stage));
     }
   }
 
