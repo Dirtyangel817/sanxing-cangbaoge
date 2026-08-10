@@ -60,9 +60,9 @@
   const SURFACE_NUDGE = 20;
   /* 天兵与主角同高站立，不再额外抬高 */
   const ENEMY_Y_NUDGE = 0;
-  const MOVE_SPEED = 4.6;
-  const GRAVITY = 0.72;
-  const JUMP_V = 13.5 * Math.SQRT2;
+  const MOVE_SPEED = 9.5;
+  const GRAVITY = 1.15;
+  const JUMP_V = 13.5 * Math.SQRT2 * Math.sqrt(1.15 / 0.72);
   const MAX_JUMPS = 2;
   const LAND_TOL = 14;
   const MAX_WALK_STEP = 3;
@@ -1319,8 +1319,8 @@
     const viewW = viewWidth();
     const maxCam = Math.max(0, arenaWidth - viewW);
     const focus = Math.min(maxCam, Math.max(0, hero.x - viewW * 0.38));
-    /* 水平镜头平滑跟随人物 */
-    runScroll.world += (focus - runScroll.world) * 0.16;
+    /* 镜头紧跟角色，避免「人动镜慢」造成飘移感 */
+    runScroll.world += (focus - runScroll.world) * 0.48;
     if (runScroll.world < 0) runScroll.world = 0;
     if (runScroll.world > maxCam) runScroll.world = maxCam;
 
@@ -1330,12 +1330,12 @@
     const heroT = Math.min(1, Math.max(0, (hero.x - arenaMinX()) / span));
     const targetX = camT * 0.35 + heroT * 0.65 - 0.5;
 
-    /* 垂直只做很弱、很慢的跟随，跳跃不会扯动整场 */
+    /* 垂直几乎不跟跳，避免整场上下晃 */
     const yBase = 110;
     const targetY = Math.min(8, Math.max(-4, (hero.y - yBase) * 0.04));
 
-    viewFx.x += (targetX - viewFx.x) * 0.1;
-    viewFx.y += (targetY - viewFx.y) * 0.05;
+    viewFx.x += (targetX - viewFx.x) * 0.22;
+    viewFx.y += (targetY - viewFx.y) * 0.08;
 
     trackWorld.style.transform = `translate3d(${(-runScroll.world).toFixed(2)}px, 0, 0)`;
     runner.style.transform = "";

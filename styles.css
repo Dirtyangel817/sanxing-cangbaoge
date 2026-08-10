@@ -1016,13 +1016,13 @@ img, canvas {
   image-rendering: crisp-edges;
 }
 .runner.is-moving:not(.is-air) .runner__sprite {
-  animation: run-cycle 0.28s steps(2, end) infinite;
+  animation: run-cycle 0.18s steps(2, end) infinite;
 }
 .runner.is-facing-left.is-moving:not(.is-air) .runner__sprite {
-  animation: run-cycle-left 0.28s steps(2, end) infinite;
+  animation: run-cycle-left 0.18s steps(2, end) infinite;
 }
 .runner.is-moving:not(.is-air) .runner__shadow {
-  animation: run-shadow 0.28s steps(2, end) infinite;
+  animation: run-shadow 0.18s steps(2, end) infinite;
 }
 .runner.is-air .runner__shadow { opacity: 0.35; transform: translateX(-50%) scaleX(0.65); }
 .runner[data-hero="blue"] .runner__sprite {
