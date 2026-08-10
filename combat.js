@@ -579,6 +579,24 @@
     playTone({ freq: 180, dur: 0.08, type: "square", vol: 0.07, slide: 90 });
   }
 
+  /** 掉命：游戏机按键音（两声短促方波） */
+  function sfxLifeLost() {
+    playTone({ freq: 520, dur: 0.06, type: "square", vol: 0.09, slide: 260 });
+    playTone({ freq: 380, dur: 0.07, type: "square", vol: 0.08, slide: 180, delay: 0.12 });
+  }
+
+  function flashPortraitOnLifeLost() {
+    const member = document.querySelector(`.party .member[data-hero="${selected}"]`);
+    if (!member) return;
+    const portrait = member.querySelector(".portrait");
+    if (!portrait) return;
+    portrait.classList.remove("is-life-flash");
+    void portrait.offsetWidth;
+    portrait.classList.add("is-life-flash");
+    const clear = () => portrait.classList.remove("is-life-flash");
+    portrait.addEventListener("animationend", clear, { once: true });
+  }
+
   function pointInAttackArc(ox, oy, px, py, facing, reach) {
     const dx = (px - ox) * (facing < 0 ? -1 : 1);
     const dy = py - oy;
@@ -1600,6 +1618,8 @@
     hero.dead = true;
     heroLives = Math.max(0, heroLives - 1);
     renderLives();
+    flashPortraitOnLifeLost();
+    sfxLifeLost();
     if (heroLives <= 0) {
       /* 立刻弹出全屏结算页，不用底部 toast */
       openGameOver();

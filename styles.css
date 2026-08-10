@@ -251,6 +251,35 @@ img, canvas {
 .member.is-out .lives__n {
   color: #b0b6c8;
 }
+.portrait.is-life-flash {
+  animation: portrait-life-flash 0.42s steps(1, end) both;
+}
+
+@keyframes portrait-life-flash {
+  0%,
+  100% {
+    opacity: 1;
+    filter: drop-shadow(1px 1px 0 #0008) brightness(1);
+  }
+  12%,
+  37% {
+    opacity: 0.15;
+    filter: drop-shadow(1px 1px 0 #0008) brightness(2.2);
+  }
+  25%,
+  50% {
+    opacity: 1;
+    filter: drop-shadow(1px 1px 0 #0008) brightness(1);
+  }
+  62% {
+    opacity: 0.15;
+    filter: drop-shadow(1px 1px 0 #0008) brightness(2.2);
+  }
+  75% {
+    opacity: 1;
+    filter: drop-shadow(1px 1px 0 #0008) brightness(1);
+  }
+}
 
 .stage {
   inset: 0;
