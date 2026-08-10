@@ -95,7 +95,7 @@ img, canvas {
   object-position: center 42%;
 }
 
-/* 中景约 90%，居中偏下 */
+/* 中景�?90%，居中偏�?*/
 .layer-mid img,
 .layer-mid canvas {
   position: absolute;
@@ -461,7 +461,7 @@ img, canvas {
   animation: blink 1s steps(2, end) infinite;
 }
 
-/* —— 横版无限跑道（起伏 / 空隙 / 金币） —— */
+/* —�?横版无限跑道（起�?/ 空隙 / 金币�?—�?*/
 .game.is-running .scene,
 .game.is-running .stage {
   opacity: 0;
@@ -513,7 +513,7 @@ img, canvas {
 .run-parallax--front {
   z-index: 3;
 }
-/* 中景 / 近景：半屏×1.8≈90% 高，再略向下 */
+/* 中景 / 近景：半屏�?.8�?0% 高，再略向下 */
 .run-parallax--mid .run-parallax__art,
 .run-parallax--front .run-parallax__art {
   inset: -4% -22% -16% -22%;
@@ -585,7 +585,7 @@ img, canvas {
   width: 203px;
   margin-left: -102px;
   transform-origin: 50% 100%;
-  /* 高于地形拼接 zIndex（10+x），保证天兵在平台前面 */
+  /* 高于地形拼接 zIndex�?0+x），保证天兵在平台前�?*/
   z-index: 8000;
   pointer-events: none;
 }
@@ -642,11 +642,21 @@ img, canvas {
 .runner.is-attacking .runner__sprite {
   animation: fan-pose 0.28s ease-out both !important;
 }
+.runner.has-melee.is-attacking .runner__sprite,
+.runner.has-sword.is-attacking .runner__sprite,
+.runner.has-fan.is-attacking .runner__sprite {
+  animation: sword-pose 0.38s ease-out both !important;
+}
 .runner.is-facing-left .runner__sprite {
   transform: scaleX(-1);
 }
 .runner.is-facing-left.is-attacking .runner__sprite {
   animation: fan-pose-left 0.28s ease-out both !important;
+}
+.runner.has-melee.is-facing-left.is-attacking .runner__sprite,
+.runner.has-sword.is-facing-left.is-attacking .runner__sprite,
+.runner.has-fan.is-facing-left.is-attacking .runner__sprite {
+  animation: sword-pose-left 0.38s ease-out both !important;
 }
 .runner.is-facing-left .fan-arc {
   left: auto;
@@ -666,7 +676,147 @@ img, canvas {
   animation: fan-sweep-left 0.32s ease-out both;
 }
 
-/* 扇子挥击弧：盖在角色上层，明显扫过 */
+/* 武器机架：剑 / 芭蕉扇叠放 */
+.weapon-rack {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  pointer-events: none;
+}
+.weapon-rack[hidden] { display: none !important; }
+.runner.has-melee.is-facing-left .weapon-rack {
+  transform: scaleX(-1);
+  transform-origin: 50% 50%;
+}
+.runner.has-melee .fan-arc {
+  display: none !important;
+}
+
+.weapon-slot {
+  position: absolute;
+  left: 84%;
+  bottom: 24%;
+  width: 0;
+  height: 0;
+  transform: translate3d(var(--stack-x, 0), var(--stack-y, 0), 0)
+    rotate(var(--stack-rot, 0deg));
+  transform-origin: 0 0;
+}
+.weapon-slot--fan {
+  left: 78%;
+  bottom: 30%;
+}
+
+.weapon-arm {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+  transform: translate3d(0, 0, 0) rotate(0deg);
+  pointer-events: none;
+  will-change: transform;
+}
+
+.weapon-sprite {
+  position: absolute;
+  left: -6px;
+  bottom: -10px;
+  top: auto;
+  height: auto;
+  transform-origin: 14% 86%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: drop-shadow(1px 2px 0 #0008);
+  will-change: transform;
+}
+.weapon-sprite--sword {
+  width: clamp(78px, 10vw, 106px);
+  transform: rotate(-15deg);
+}
+.weapon-sprite--fan {
+  width: clamp(86px, 11vw, 118px);
+  left: -8px;
+  bottom: -14px;
+  transform-origin: 12% 88%;
+  transform: rotate(-12deg);
+}
+
+.weapon-arc {
+  --slash-r: 180px;
+  position: absolute;
+  left: calc(var(--slash-r) * -0.22);
+  top: calc(var(--slash-r) * -0.78);
+  width: var(--slash-r);
+  height: var(--slash-r);
+  border-radius: 50%;
+  opacity: 0;
+  filter: drop-shadow(0 0 8px #b8e0ffcc);
+  -webkit-mask-image: radial-gradient(
+    circle at 22% 78%,
+    transparent 0 16%,
+    #000 22% 70%,
+    transparent 82%
+  );
+  mask-image: radial-gradient(
+    circle at 22% 78%,
+    transparent 0 16%,
+    #000 22% 70%,
+    transparent 82%
+  );
+}
+.weapon-arc--sword {
+  background: conic-gradient(
+    from 170deg at 22% 78%,
+    transparent 0deg 3deg,
+    #ffffff 3deg 10deg,
+    #e8f2ffee 10deg 42deg,
+    #9fd0ffaa 42deg 78deg,
+    #6ab0ff44 78deg 110deg,
+    transparent 110deg 360deg
+  );
+}
+.weapon-arc--fan {
+  --slash-r: 200px;
+  background: conic-gradient(
+    from 165deg at 20% 80%,
+    transparent 0deg 2deg,
+    #fff6c8 2deg 12deg,
+    #ffe56acc 12deg 36deg,
+    #6ad8ecaa 36deg 70deg,
+    #c9a0ff66 70deg 105deg,
+    transparent 105deg 360deg
+  );
+  filter: drop-shadow(0 0 8px #ffe56a88);
+}
+
+.runner.is-attacking-sword .weapon-arm--sword {
+  animation: sword-arm-slash 0.38s cubic-bezier(0.18, 0.55, 0.22, 1) both;
+  animation-delay: var(--stack-delay, 0s);
+}
+.runner.is-attacking-sword .weapon-sprite--sword {
+  animation: sword-blade-spin 0.38s cubic-bezier(0.12, 0.7, 0.2, 1) both;
+  animation-delay: var(--stack-delay, 0s);
+}
+.runner.is-attacking-sword .weapon-arc--sword {
+  animation: sword-arc-flash 0.38s ease-out both;
+  animation-delay: var(--stack-delay, 0s);
+}
+.runner.is-attacking-fan .weapon-arm--fan {
+  animation: sword-arm-slash 0.38s cubic-bezier(0.18, 0.55, 0.22, 1) both;
+  animation-delay: var(--stack-delay, 0s);
+}
+.runner.is-attacking-fan .weapon-sprite--fan {
+  animation: fan-blade-spin 0.38s cubic-bezier(0.12, 0.7, 0.2, 1) both;
+  animation-delay: var(--stack-delay, 0s);
+}
+.runner.is-attacking-fan .weapon-arc--fan {
+  animation: sword-arc-flash 0.38s ease-out both;
+  animation-delay: var(--stack-delay, 0s);
+}
+
+/* 扇子挥击弧（无持武时的旧特效） */
 .fan-arc {
   --arc-r: 260px;
   position: absolute;
@@ -727,6 +877,93 @@ img, canvas {
   0% { transform: translateX(0) rotate(0) scaleY(1); }
   40% { transform: translateX(10px) rotate(-12deg) scaleY(0.96); }
   100% { transform: translateX(4px) rotate(6deg) scaleY(1); }
+}
+@keyframes sword-pose {
+  0% { transform: translateX(0) rotate(0); }
+  25% { transform: translateX(2px) rotate(-8deg); }
+  60% { transform: translateX(10px) rotate(4deg); }
+  100% { transform: translateX(4px) rotate(2deg); }
+}
+@keyframes sword-pose-left {
+  0% { transform: scaleX(-1) translateX(0) rotate(0); }
+  25% { transform: scaleX(-1) translateX(2px) rotate(8deg); }
+  60% { transform: scaleX(-1) translateX(10px) rotate(-4deg); }
+  100% { transform: scaleX(-1) translateX(4px) rotate(-2deg); }
+}
+/*
+ * 向前伸出的半椭圆轨迹（握点）：
+ * x = a·sin(φ), y = -b·cos(φ), φ: 0→π
+ * 起点上扬 → 最远端在正前方 → 终点下压
+ */
+@keyframes sword-arm-slash {
+  0% {
+    transform: translate3d(0px, -30px, 0) rotate(-48deg);
+  }
+  18% {
+    transform: translate3d(18px, -26px, 0) rotate(-22deg);
+  }
+  36% {
+    transform: translate3d(38px, -14px, 0) rotate(8deg);
+  }
+  52% {
+    /* 椭圆最前端 */
+    transform: translate3d(48px, 0px, 0) rotate(38deg);
+  }
+  72% {
+    transform: translate3d(36px, 18px, 0) rotate(78deg);
+  }
+  100% {
+    transform: translate3d(8px, 32px, 0) rotate(112deg);
+  }
+}
+@keyframes sword-arm-slash-left {
+  0% {
+    transform: scaleX(-1) translate3d(0px, -30px, 0) rotate(-48deg);
+  }
+  18% {
+    transform: scaleX(-1) translate3d(18px, -26px, 0) rotate(-22deg);
+  }
+  36% {
+    transform: scaleX(-1) translate3d(38px, -14px, 0) rotate(8deg);
+  }
+  52% {
+    transform: scaleX(-1) translate3d(48px, 0px, 0) rotate(38deg);
+  }
+  72% {
+    transform: scaleX(-1) translate3d(36px, 18px, 0) rotate(78deg);
+  }
+  100% {
+    transform: scaleX(-1) translate3d(8px, 32px, 0) rotate(112deg);
+  }
+}
+/* 剑身绕柄翻刃，配合半椭圆前伸 */
+@keyframes sword-blade-spin {
+  0%   { transform: rotate(-15deg); }
+  22%  { transform: rotate(25deg); }
+  50%  { transform: rotate(90deg); }
+  78%  { transform: rotate(145deg); }
+  100% { transform: rotate(170deg); }
+}
+@keyframes sword-blade-spin-left {
+  0%   { transform: rotate(-15deg); }
+  22%  { transform: rotate(25deg); }
+  50%  { transform: rotate(90deg); }
+  78%  { transform: rotate(145deg); }
+  100% { transform: rotate(170deg); }
+}
+@keyframes fan-blade-spin {
+  0%   { transform: rotate(-12deg); }
+  22%  { transform: rotate(30deg); }
+  50%  { transform: rotate(95deg); }
+  78%  { transform: rotate(150deg); }
+  100% { transform: rotate(175deg); }
+}
+@keyframes sword-arc-flash {
+  0%   { opacity: 0; transform: scale(0.72) skewX(-10deg); }
+  16%  { opacity: 0.85; transform: scale(0.95) skewX(-4deg); }
+  48%  { opacity: 1; transform: scale(1.14) skewX(4deg); }
+  78%  { opacity: 0.35; transform: scale(1.2) skewX(10deg); }
+  100% { opacity: 0; transform: scale(1.24) skewX(12deg); }
 }
 @keyframes fan-sweep {
   0% {
@@ -886,10 +1123,335 @@ img, canvas {
   to { transform: translateY(-28px) scale(0.2); opacity: 0; }
 }
 
+/* —�?左侧背包按钮 / 已购面板 —�?*/
+.bag-btn {
+  position: absolute;
+  left: clamp(8px, 1.5vw, 18px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 95;
+  width: clamp(72px, 11vw, 110px);
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  filter: drop-shadow(2px 3px 0 #0008);
+  transition: transform 0.15s ease, filter 0.15s ease;
+  pointer-events: auto;
+}
+.bag-btn[hidden] { display: none !important; }
+.bag-btn img {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+}
+.bag-btn:hover {
+  transform: translateY(-50%) scale(1.06);
+  filter: drop-shadow(2px 3px 0 #0008) drop-shadow(0 0 10px #6ad8ff66);
+}
+.bag-panel {
+  position: absolute;
+  left: clamp(90px, 14vw, 140px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 96;
+  width: min(260px, 70vw);
+  padding: 14px 14px 16px;
+  border: 3px solid #7ec8ff;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #1a3a78f0, #0c1c44f5);
+  box-shadow: 0 8px 0 #041020, inset 0 0 24px #2a60c044;
+  pointer-events: auto;
+}
+.bag-panel[hidden] { display: none !important; }
+.bag-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 10px;
+  color: #ffe56a;
+  letter-spacing: 0.08em;
+  text-shadow: 1px 1px 0 #000;
+}
+.bag-panel__close {
+  width: 28px;
+  height: 28px;
+  border: 2px solid #c9d8ff;
+  border-radius: 6px;
+  background: #142850;
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.bag-panel__list {
+  display: grid;
+  gap: 8px;
+}
+.bag-item {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border: 2px solid #254878;
+  border-radius: 8px;
+  background: #0a1c40;
+}
+.bag-item img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.bag-item__meta strong {
+  display: block;
+  font-family: "ZCOOL QingKe HuangYou", sans-serif;
+  font-size: 18px;
+  color: #dcecff;
+}
+.bag-item__meta span {
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
+  color: #9eb6e8;
+}
+.bag-item__qty {
+  font-family: "Press Start 2P", monospace;
+  font-size: 11px;
+  color: #ffe56a;
+}
+.bag-panel__empty {
+  margin: 8px 0 0;
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
+  color: #8aa0c8;
+  text-align: center;
+}
+.bag-panel__empty[hidden] { display: none !important; }
+
+/* —�?关卡间商�?—�?*/
+.shop {
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(#061028cc, #061028e6),
+    url("assets/main/main_bg1.png") center / cover no-repeat;
+  pointer-events: auto;
+  cursor: auto;
+  animation: panel-in 0.28s ease-out;
+}
+.game.is-shop,
+.game.is-shop * {
+  cursor: auto !important;
+}
+.game.is-shop .cursor {
+  display: none !important;
+}
+.shop[hidden] { display: none !important; }
+.shop__panel {
+  width: min(720px, 94vw);
+  padding: 18px 20px 22px;
+  border: 3px solid #7ec8ff;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #1a3a78ee 0%, #0c1c44f2 55%, #081430f5 100%);
+  box-shadow: 0 0 0 2px #0a1838, 0 12px 0 #041020, inset 0 0 40px #2a60c044;
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+}
+.shop__head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.shop__gold {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 96px;
+  padding: 6px 12px 6px 8px;
+  border: 2px solid #1a1028;
+  border-radius: 8px;
+  background: #0a1838;
+  box-shadow: inset 0 0 0 1px #3a68b0;
+}
+.shop__gold img {
+  width: 28px;
+  height: 28px;
+  image-rendering: pixelated;
+}
+.shop__gold span {
+  font-family: "Press Start 2P", monospace;
+  font-size: 14px;
+  color: #ffe56a;
+  text-shadow: 1px 1px 0 #000;
+}
+.shop__slots {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(10px, 2vw, 18px);
+  padding: 4px 2px 0;
+}
+.shop-slot {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  cursor: pointer;
+  color: inherit;
+}
+.shop-slot__frame {
+  width: 100%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 3px solid #254878;
+  border-radius: 12px;
+  background: #0a1c40;
+  box-shadow: inset 0 0 0 2px #122850, 0 4px 0 #041020;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
+}
+.shop-slot__frame img {
+  width: 72%;
+  height: auto;
+  max-height: 78%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(1px 2px 0 #0008);
+}
+.shop-slot:hover .shop-slot__frame {
+  border-color: #8ad0ffaa;
+}
+.shop-slot.is-focus .shop-slot__frame {
+  border-color: #6ad8ff;
+  box-shadow: inset 0 0 0 2px #1a4068, 0 0 14px #6ad8ff66, 0 4px 0 #041020;
+  transform: translateY(-2px);
+}
+.shop-slot__name {
+  font-family: "ZCOOL QingKe HuangYou", "Silkscreen", sans-serif;
+  font-size: clamp(16px, 3vw, 22px);
+  color: #dcecff;
+  text-shadow: 1px 1px 0 #000;
+}
+.shop-slot__price {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 11px;
+  color: #ffe56a;
+  text-shadow: 1px 1px 0 #000;
+}
+.shop-slot__price img {
+  width: 18px;
+  height: 18px;
+  image-rendering: pixelated;
+}
+.shop-slot.is-broke .shop-slot__price { color: #ff7a7a; }
+.shop__tip {
+  width: 100%;
+  min-height: 58px;
+  padding: 10px 14px;
+  border: 2px solid #254878;
+  border-radius: 10px;
+  background: #0a1838cc;
+  text-align: center;
+}
+.shop__tip strong {
+  display: block;
+  margin-bottom: 6px;
+  font-family: "ZCOOL QingKe HuangYou", sans-serif;
+  font-size: clamp(18px, 3vw, 24px);
+  color: #ffe56a;
+  text-shadow: 1px 1px 0 #000;
+}
+.shop__tip p {
+  margin: 0;
+  font-family: "Press Start 2P", monospace;
+  font-size: 9px;
+  line-height: 1.6;
+  color: #c5d6ff;
+  letter-spacing: 0.04em;
+}
+.shop__actions {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px 16px;
+  margin-top: 4px;
+}
+.shop__buy {
+  padding: 12px 28px;
+  border: 3px solid #7ec8ff;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #2a58b0, #1a3878);
+  color: #e8f2ff;
+  font-family: "Press Start 2P", monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #0a1838;
+}
+.shop__buy:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+.shop__buy:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+  transform: none;
+}
+.shop__next {
+  padding: 14px 28px;
+  border: 3px solid #ffe56a;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #c9a020, #8a6010);
+  color: #fff8d8;
+  font-family: "Press Start 2P", monospace;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  box-shadow: 0 5px 0 #3a2808, 0 0 18px #ffe56a44;
+  text-shadow: 1px 1px 0 #0008;
+}
+.shop__next:hover {
+  filter: brightness(1.1);
+  transform: translateY(-2px);
+  box-shadow: 0 7px 0 #3a2808, 0 0 24px #ffe56a66;
+}
+.shop__next:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 0 #3a2808, 0 0 12px #ffe56a44;
+}
+
 @media (max-width: 560px) {
   .runner { width: clamp(64px, 22vw, 92px); }
   .pickup-coin { width: 70px; height: 70px; margin-left: -35px; }
   .enemy { width: 166px; margin-left: -83px; }
   .runner { margin-left: -32px; }
   .fan-arc { --arc-r: 220px; }
+  .shop__slots { grid-template-columns: 1fr; max-width: 220px; }
+  .shop-slot__frame { max-width: 160px; }
+  .bag-btn { top: auto; bottom: 56px; transform: none; }
+  .bag-btn:hover { transform: scale(1.06); }
+  .bag-panel {
+    left: 50%;
+    top: auto;
+    bottom: 140px;
+    transform: translateX(-50%);
+  }
 }

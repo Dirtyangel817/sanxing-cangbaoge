@@ -12,6 +12,8 @@
   const runway = document.getElementById("runway");
   const runner = document.getElementById("runner");
   const runnerSprite = document.getElementById("runner-sprite");
+  const swordRack = document.getElementById("weapon-rack");
+  const weaponRack = swordRack;
   const runBack = document.getElementById("run-back");
   const runMid = document.getElementById("run-mid");
   const runFront = document.getElementById("run-front");
@@ -20,6 +22,18 @@
   const stageTimerEl = document.getElementById("stage-timer");
   const stageLabelEl = document.getElementById("stage-label");
   const stageTimeEl = document.getElementById("stage-time");
+  const shopEl = document.getElementById("shop");
+  const shopGoldEl = document.getElementById("shop-gold");
+  const shopNextBtn = document.getElementById("shop-next");
+  const shopBuyBtn = document.getElementById("shop-buy");
+  const shopTipName = document.getElementById("shop-tip-name");
+  const shopTipDesc = document.getElementById("shop-tip-desc");
+  const shopSlots = [...document.querySelectorAll(".shop-slot")];
+  const bagBtn = document.getElementById("bag-btn");
+  const bagPanel = document.getElementById("bag-panel");
+  const bagList = document.getElementById("bag-list");
+  const bagEmpty = document.getElementById("bag-empty");
+  const bagCloseBtn = document.getElementById("bag-close");
 
   const runBackArt = runBack && runBack.querySelector(".run-parallax__art");
   const runMidArt = runMid && runMid.querySelector(".run-parallax__art");
@@ -50,7 +64,8 @@
   const GRAVITY = 0.72;
   const JUMP_V = 13.5 * Math.SQRT2;
   const MAX_JUMPS = 2;
-  const LAND_TOL = 36;
+  const LAND_TOL = 14;
+  const MAX_WALK_STEP = 3;
   const GAP_SAFE_RATIO = 0.75;
   const FORCE_ZERO_GAP = false;
   const MAX_HP = 20;
@@ -59,9 +74,41 @@
   const BOSS_MAX_HP = 16;
   const BOSS_MOVE = 2.1;
   const BOSS_HURT_FRAMES = 18;
-  const ATTACK_FRAMES = 20;
+  const ATTACK_FRAMES = 26;
   const HURT_IFRAMES = 45;
   const ATTACK_REACH = 96 * 3;
+  const SWORD_CD_MS = 500;
+  const FAN_CD_MS = 1000;
+  const SHOP_PRICE = 20;
+  const SHOP_CATALOG = {
+    baojian: {
+      name: "宝剑",
+      price: SHOP_PRICE,
+      icon: "assets/shop/baojian.png",
+      desc: "自动单体斩击（左右皆可），0.5 秒一次；攻击力 +2。可多次购买叠加。",
+      apply() {
+        buffs.atk += 2;
+      },
+    },
+    bajiaoshan: {
+      name: "芭蕉扇",
+      price: SHOP_PRICE,
+      icon: "assets/shop/bajiaoshan.png",
+      desc: "自动范围扇击，1 秒一次；范围 +48。可多次购买叠加。",
+      apply() {
+        buffs.reach += 48;
+      },
+    },
+    fenghuolun: {
+      name: "风火轮",
+      price: SHOP_PRICE,
+      icon: "assets/shop/fenghuolun.png",
+      desc: "脚踏风火，移动速度 +0.7。可多次购买叠加。",
+      apply() {
+        buffs.speed += 0.7;
+      },
+    },
+  };
   /* 扇形攻击角度（相对水平向右，y 轴向上），单位度 */
   const ARC_ANGLE_MIN = -28;
   const ARC_ANGLE_MAX = 62;
@@ -130,7 +177,10 @@
     dead: false,
     jumpsLeft: MAX_JUMPS,
     hp: MAX_HP,
-    attackFrames: 0,
+    swordAnimFrames: 0,
+    fanAnimFrames: 0,
+    swordReadyAt: 0,
+    fanReadyAt: 0,
     hurtFrames: 0,
   };
   const platforms = [];
@@ -141,7 +191,7 @@
   let lastGapAt = -9999;
   let lastBossAt = -9999;
   let flatStreak = 0;
-  let selected = "red";
+  let selected = "blue";
   let started = false;
   let running = false;
   let paused = false;
@@ -150,6 +200,11 @@
   let stageClock = 0;
   let waveCooldown = 0;
   let stageBusy = false;
+  let inShop = false;
+  let shopFocus = -1;
+  let pendingNextStage = 2;
+  const buffs = { atk: 0, reach: 0, speed: 0 };
+  const shopBought = { baojian: 0, bajiaoshan: 0, fenghuolun: 0 };
   let coinImgUrl = COIN_SRC;
   let enemyImgUrl = ENEMY_SRC;
   let floorImgUrl = FLOOR_SRC;
@@ -482,13 +537,54 @@
     playTone({ freq: 180, dur: 0.08, type: "square", vol: 0.07, slide: 90 });
   }
 
-  function pointInFanArc(ox, oy, px, py, facing = 1) {
+  function pointInAttackArc(ox, oy, px, py, facing, reach) {
     const dx = (px - ox) * (facing < 0 ? -1 : 1);
     const dy = py - oy;
     const dist = Math.hypot(dx, dy);
-    if (dist > ATTACK_REACH || dist < 12) return false;
+    if (dist > reach || dist < 12) return false;
     const deg = (Math.atan2(dy, dx) * 180) / Math.PI;
     return deg >= ARC_ANGLE_MIN && deg <= ARC_ANGLE_MAX;
+  }
+
+  function swordReach() {
+    return ATTACK_REACH;
+  }
+
+  function fanReach() {
+    return ATTACK_REACH + buffs.reach;
+  }
+
+  function attackOrigin(heroW) {
+    return {
+      ox: hero.x + hero.facing * heroW * 0.12,
+      oy: hero.y + 46,
+    };
+  }
+
+  function enemiesInArc(ox, oy, facing, reach) {
+    const hits = [];
+    for (let i = 0; i < enemies.length; i++) {
+      const e = enemies[i];
+      if (e.dead) continue;
+      const eCx = e.x;
+      const eCy = e.y + e.h * 0.42;
+      if (pointInAttackArc(ox, oy, eCx, eCy, facing, reach)) hits.push(e);
+    }
+    return hits;
+  }
+
+  function nearestEnemy(list, ox, oy) {
+    let best = null;
+    let bestD = Infinity;
+    for (let i = 0; i < list.length; i++) {
+      const e = list[i];
+      const d = Math.hypot(e.x - ox, e.y + e.h * 0.42 - oy);
+      if (d < bestD) {
+        bestD = d;
+        best = e;
+      }
+    }
+    return best;
   }
 
   function activeHpBar() {
@@ -514,6 +610,231 @@
 
   function formatCoins(n) {
     return `x${String(Math.min(999, Math.max(0, n))).padStart(3, "0")}`;
+  }
+
+  function playerAtk() {
+    return PLAYER_ATK + buffs.atk;
+  }
+
+  function playerMoveSpeed() {
+    return MOVE_SPEED + buffs.speed;
+  }
+
+  function resetRunBuffs() {
+    buffs.atk = 0;
+    buffs.reach = 0;
+    buffs.speed = 0;
+    shopBought.baojian = 0;
+    shopBought.bajiaoshan = 0;
+    shopBought.fenghuolun = 0;
+  }
+
+  function hasSword() {
+    return (shopBought.baojian || 0) > 0;
+  }
+
+  function hasFan() {
+    return (shopBought.bajiaoshan || 0) > 0;
+  }
+
+  function hasMeleeVisual() {
+    return hasSword() || hasFan();
+  }
+
+  function itemVisualCount(id) {
+    return Math.min(6, Math.max(0, shopBought[id] | 0));
+  }
+
+  function appendStackedWeapon(kind, count, iconSrc, baseDelay = 0) {
+    if (!weaponRack || count <= 0) return;
+    for (let i = 0; i < count; i++) {
+      const spread = i - (count - 1) / 2;
+      const slot = document.createElement("div");
+      slot.className = `weapon-slot weapon-slot--${kind}`;
+      slot.style.setProperty("--stack-x", `${(spread * 11).toFixed(1)}px`);
+      slot.style.setProperty("--stack-y", `${(spread * -7).toFixed(1)}px`);
+      slot.style.setProperty("--stack-rot", `${(spread * 9).toFixed(1)}deg`);
+      slot.style.setProperty("--stack-delay", `${(baseDelay + i * 0.028).toFixed(3)}s`);
+
+      const arm = document.createElement("div");
+      arm.className = `weapon-arm weapon-arm--${kind}`;
+      const arc = document.createElement("div");
+      arc.className = `weapon-arc weapon-arc--${kind}`;
+      arc.setAttribute("aria-hidden", "true");
+      const img = document.createElement("img");
+      img.className = `weapon-sprite weapon-sprite--${kind}`;
+      img.src = iconSrc;
+      img.alt = "";
+      img.draggable = false;
+      arm.appendChild(arc);
+      arm.appendChild(img);
+      slot.appendChild(arm);
+      weaponRack.appendChild(slot);
+    }
+  }
+
+  function syncWeaponVisual() {
+    const swords = itemVisualCount("baojian");
+    const fans = itemVisualCount("bajiaoshan");
+    runner.classList.toggle("has-sword", swords > 0);
+    runner.classList.toggle("has-fan", fans > 0);
+    runner.classList.toggle("has-melee", hasMeleeVisual());
+    if (!weaponRack) return;
+    weaponRack.hidden = swords + fans <= 0;
+    weaponRack.innerHTML = "";
+    appendStackedWeapon("sword", swords, "assets/shop/baojian.png", 0);
+    appendStackedWeapon("fan", fans, "assets/shop/bajiaoshan.png", swords * 0.02);
+  }
+
+  /** 青衫开局自带 1 把宝剑 */
+  function grantStartingLoadout() {
+    if (selected === "blue") {
+      const n = 1;
+      shopBought.baojian = n;
+      buffs.atk += 2 * n;
+    }
+    syncWeaponVisual();
+  }
+
+  function syncShopTip() {
+    if (shopFocus < 0 || !shopSlots[shopFocus]) {
+      if (shopTipName) shopTipName.textContent = "点击商品查看详情";
+      if (shopTipDesc) shopTipDesc.textContent = "选中后点购买；备好后点「进入下一关」继续闯关";
+      return;
+    }
+    const id = shopSlots[shopFocus].dataset.item;
+    const item = SHOP_CATALOG[id];
+    if (!item) return;
+    if (shopTipName) shopTipName.textContent = item.name;
+    if (shopTipDesc) {
+      const owned = shopBought[id] || 0;
+      shopTipDesc.textContent =
+        owned > 0 ? `${item.desc}（已拥有 x${owned}）` : item.desc;
+    }
+  }
+
+  function syncShopUi() {
+    if (shopGoldEl) shopGoldEl.textContent = String(coinCount);
+    shopSlots.forEach((btn, i) => {
+      const id = btn.dataset.item;
+      const item = SHOP_CATALOG[id];
+      if (!item) return;
+      btn.classList.toggle("is-focus", i === shopFocus);
+      btn.classList.toggle("is-broke", coinCount < item.price);
+      const priceEl = btn.querySelector(".shop-slot__price b");
+      if (priceEl) priceEl.textContent = String(item.price);
+    });
+    if (shopBuyBtn) {
+      const sel = shopFocus >= 0 ? shopSlots[shopFocus] : null;
+      const item = sel && SHOP_CATALOG[sel.dataset.item];
+      shopBuyBtn.disabled = !item || coinCount < item.price;
+    }
+    syncShopTip();
+  }
+
+  function renderBagPanel() {
+    if (!bagList) return;
+    bagList.innerHTML = "";
+    let total = 0;
+    Object.keys(SHOP_CATALOG).forEach((id) => {
+      const qty = shopBought[id] | 0;
+      if (qty <= 0) return;
+      total += qty;
+      const item = SHOP_CATALOG[id];
+      const row = document.createElement("div");
+      row.className = "bag-item";
+      row.innerHTML = `
+        <img src="${item.icon}" alt="" draggable="false" />
+        <div class="bag-item__meta">
+          <strong>${item.name}</strong>
+          <span>${item.desc}</span>
+        </div>
+        <span class="bag-item__qty">x${qty}</span>
+      `;
+      bagList.appendChild(row);
+    });
+    if (bagEmpty) bagEmpty.hidden = total > 0;
+  }
+
+  function setBagOpen(on) {
+    if (!bagPanel) return;
+    if (on) {
+      renderBagPanel();
+      bagPanel.hidden = false;
+    } else {
+      bagPanel.hidden = true;
+    }
+  }
+
+  function toggleBag() {
+    if (!running) return;
+    setBagOpen(bagPanel && bagPanel.hidden);
+  }
+
+  function openShop(nextStage) {
+    inShop = true;
+    stageBusy = true;
+    pendingNextStage = nextStage;
+    shopFocus = -1;
+    setBagOpen(false);
+    if (shopEl) {
+      shopEl.hidden = false;
+      shopEl.removeAttribute("hidden");
+    }
+    if (stageTimerEl) stageTimerEl.hidden = true;
+    if (bagBtn) bagBtn.hidden = true;
+    if (shopNextBtn) shopNextBtn.textContent = `进入第 ${nextStage} 关`;
+    game.classList.add("is-shop");
+    cursor.classList.remove("is-on");
+    syncShopUi();
+    showToast("宝阁商店开张", 1000);
+  }
+
+  function closeShopAndContinue() {
+    if (!inShop) return;
+    const next = pendingNextStage;
+    inShop = false;
+    if (shopEl) shopEl.hidden = true;
+    game.classList.remove("is-shop");
+    setBagOpen(false);
+    if (bagBtn) bagBtn.hidden = false;
+    showToast(`第 ${next} 关 · 开始！`, 1200);
+    beginStage(next, false);
+  }
+
+  function selectShopItem(index) {
+    if (!inShop || index < 0 || index >= shopSlots.length) return;
+    shopFocus = index;
+    syncShopUi();
+  }
+
+  function buySelectedShopItem() {
+    if (!inShop || shopFocus < 0) {
+      showToast("请先选择商品", 900);
+      return false;
+    }
+    const id = shopSlots[shopFocus] && shopSlots[shopFocus].dataset.item;
+    return buyShopItem(id);
+  }
+
+  function buyShopItem(id) {
+    const item = SHOP_CATALOG[id];
+    if (!item || !inShop) return false;
+    if (coinCount < item.price) {
+      showToast("金币不足", 900);
+      syncShopUi();
+      return false;
+    }
+    coinCount -= item.price;
+    drawCoinCount(formatCoins(coinCount));
+    item.apply();
+    shopBought[id] = (shopBought[id] || 0) + 1;
+    sfxCoin();
+    showToast(`购得${item.name}`, 1000);
+    syncWeaponVisual();
+    syncShopUi();
+    if (bagPanel && !bagPanel.hidden) renderBagPanel();
+    return true;
   }
 
   function stageDuration(n) {
@@ -586,22 +907,27 @@
   function beginStage(n, resetCoins) {
     stage = Math.max(1, n | 0);
     stageBusy = false;
+    inShop = false;
+    if (shopEl) shopEl.hidden = true;
     clearEnemies();
     if (resetCoins) {
       coinCount = 0;
       drawCoinCount(formatCoins(0));
+      resetRunBuffs();
+      grantStartingLoadout();
     }
     stageTimeLeft = stageDuration(stage);
     stageClock = performance.now();
     waveCooldown = 20;
     if (stageTimerEl) stageTimerEl.hidden = false;
+    if (bagBtn) bagBtn.hidden = false;
     updateStageHud();
     spawnWave(2);
     showToast(`第 ${stage} 关 · ${stageDuration(stage)} 秒`, 1200);
   }
 
   function updateStageSystem() {
-    if (!running || paused || hero.dead || stageBusy) return;
+    if (!running || paused || hero.dead || stageBusy || inShop) return;
     const now = performance.now();
     if (!stageClock) stageClock = now;
     const dt = Math.min(0.05, (now - stageClock) / 1000);
@@ -613,7 +939,8 @@
       updateStageHud();
       stageBusy = true;
       clearEnemies();
-      setTimeout(() => beginStage(stage + 1, false), 500);
+      showToast("本关结束 · 进入宝阁商店", 1100);
+      setTimeout(() => openShop(stage + 1), 700);
       return;
     }
 
@@ -908,10 +1235,9 @@
 
   /**
    * 脚底区间与台面有任意水平重叠即算接触。
-   * 更高台且人还在其下：不能站这台（当墙跳过），但不取消其它平地支撑，避免接缝处掉落。
+   * 只能从上落下或站稳，禁止步行自动走上更高台阶。
    */
   function findLandingSurface(prevY, nextY, xLeft, xRight) {
-    const yRef = Math.max(prevY, nextY);
     let best = null;
     let bestDist = Infinity;
 
@@ -921,11 +1247,14 @@
       if (overlap <= 0) continue;
 
       const top = p.h;
-      /* 人明显低于该台面 → 这是立面，不能当地板；继续看别的台 */
-      if (yRef < top - 10 && prevY < top - LAND_TOL) continue;
+      /* 人明显低于该台面 → 立面，不能当地板 */
+      if (prevY < top - MAX_WALK_STEP && nextY < top - MAX_WALK_STEP) continue;
 
       const stayOn = Math.abs(prevY - top) <= 6 && nextY <= top + 16;
-      const crossed = prevY >= top - LAND_TOL && nextY <= top + 16;
+      const crossed =
+        prevY >= top - LAND_TOL &&
+        nextY <= top + 16 &&
+        prevY >= top - MAX_WALK_STEP;
       if (!stayOn && !crossed) continue;
 
       const dist = Math.abs(top - prevY);
@@ -935,6 +1264,31 @@
       }
     }
     return best;
+  }
+
+  /** 贴地走进更高台阶时当墙挡住，必须跳上去 */
+  function resolveLedgeWalls(actor, halfW, yNudge, prevX) {
+    const feetY = actor.y - yNudge;
+    for (let i = 0; i < platforms.length; i++) {
+      const p = platforms[i];
+      if (p.h <= feetY + MAX_WALK_STEP) continue;
+
+      const left = p.x;
+      const right = p.x + p.w;
+      const bodyL = actor.x - halfW;
+      const bodyR = actor.x + halfW;
+      if (bodyR <= left || bodyL >= right) continue;
+
+      const prevL = prevX - halfW;
+      const prevR = prevX + halfW;
+      if (prevR <= left + 0.5 && bodyR > left) {
+        actor.x = left - halfW;
+        if (actor.vx > 0) actor.vx = 0;
+      } else if (prevL >= right - 0.5 && bodyL < right) {
+        actor.x = right + halfW;
+        if (actor.vx < 0) actor.vx = 0;
+      }
+    }
   }
 
   function syncHeroEl() {
@@ -994,10 +1348,20 @@
     hero.onGround = true;
     hero.dead = false;
     hero.jumpsLeft = MAX_JUMPS;
-    hero.attackFrames = 0;
+    hero.swordAnimFrames = 0;
+    hero.fanAnimFrames = 0;
+    hero.swordReadyAt = 0;
+    hero.fanReadyAt = 0;
     hero.hurtFrames = 0;
     hero.facing = 1;
-    runner.classList.remove("is-air", "is-attacking", "is-hurt", "is-moving");
+    runner.classList.remove(
+      "is-air",
+      "is-attacking",
+      "is-attacking-sword",
+      "is-attacking-fan",
+      "is-hurt",
+      "is-moving"
+    );
     if (!platforms.length) {
       hero.x = 180;
       hero.y = 110;
@@ -1021,7 +1385,7 @@
   }
 
   function togglePause() {
-    if (!running) return;
+    if (!running || inShop) return;
     setPaused(!paused);
   }
 
@@ -1034,14 +1398,59 @@
     sfxJump();
   }
 
-  function tryAttack() {
-    if (!running || paused || hero.dead || hero.attackFrames > 0) return;
-    hero.attackFrames = ATTACK_FRAMES;
-    /* 重触发 CSS 挥扇动画 */
-    runner.classList.remove("is-attacking");
+  function playWeaponAnim(kind) {
+    const cls = kind === "fan" ? "is-attacking-fan" : "is-attacking-sword";
+    if (kind === "fan") hero.fanAnimFrames = ATTACK_FRAMES;
+    else hero.swordAnimFrames = ATTACK_FRAMES;
+    runner.classList.remove(cls);
     void runner.offsetWidth;
-    runner.classList.add("is-attacking");
+    runner.classList.add("is-attacking", cls);
     sfxAttack();
+  }
+
+  function tickWeaponAnims() {
+    if (hero.swordAnimFrames > 0) {
+      hero.swordAnimFrames -= 1;
+      if (hero.swordAnimFrames <= 0) runner.classList.remove("is-attacking-sword");
+    }
+    if (hero.fanAnimFrames > 0) {
+      hero.fanAnimFrames -= 1;
+      if (hero.fanAnimFrames <= 0) runner.classList.remove("is-attacking-fan");
+    }
+    if (hero.swordAnimFrames <= 0 && hero.fanAnimFrames <= 0) {
+      runner.classList.remove("is-attacking");
+    }
+  }
+
+  function tryAutoAttacks(heroW) {
+    if (!running || paused || hero.dead || inShop) return;
+    const now = performance.now();
+    const swordOx = hero.x;
+    const swordOy = hero.y + 46;
+    const { ox, oy } = attackOrigin(heroW);
+
+    if (hasSword() && now >= hero.swordReadyAt) {
+      /* 宝剑：左右两侧都能打，优先最近目标 */
+      const hitsL = enemiesInArc(swordOx, swordOy, -1, swordReach());
+      const hitsR = enemiesInArc(swordOx, swordOy, 1, swordReach());
+      const hits = hitsL.concat(hitsR.filter((e) => !hitsL.includes(e)));
+      const target = nearestEnemy(hits, swordOx, swordOy);
+      if (target) {
+        hero.facing = target.x < hero.x ? -1 : 1;
+        hurtBoss(target, playerAtk());
+        playWeaponAnim("sword");
+        hero.swordReadyAt = now + SWORD_CD_MS;
+      }
+    }
+
+    if (hasFan() && now >= hero.fanReadyAt) {
+      const hits = enemiesInArc(ox, oy, hero.facing, fanReach());
+      if (hits.length) {
+        for (let i = 0; i < hits.length; i++) hurtBoss(hits[i], playerAtk());
+        playWeaponAnim("fan");
+        hero.fanReadyAt = now + FAN_CD_MS;
+      }
+    }
   }
 
   function takeDamage(amount) {
@@ -1074,21 +1483,30 @@
   }
 
   function hurtBoss(boss, amount) {
-    if (boss.dead || boss.hurtFrames > 0) return;
+    if (boss.dead) return;
     boss.hp = Math.max(0, boss.hp - amount);
-    boss.hurtFrames = BOSS_HURT_FRAMES;
-    boss.vx = -boss.facing * 1.2;
+    if (boss.hurtFrames <= 0) {
+      boss.hurtFrames = BOSS_HURT_FRAMES;
+      boss.vx = -boss.facing * 1.2;
+      sfxHit();
+    }
     renderBossHp(boss);
-    sfxHit();
     if (boss.hp <= 0) defeatBoss(boss);
   }
 
   function applyActorPhysics(actor, halfW, yNudge = 0) {
     const prevY = actor.y;
+    const prevX = actor.x;
+    const wasGrounded = actor.onGround;
     actor.vy -= GRAVITY;
     actor.y += actor.vy;
     actor.x += actor.vx;
     clampActorX(actor);
+
+    /* 仅贴地步行时挡台阶；跳跃上升不挡，才能跳上去 */
+    if (wasGrounded && actor.vy <= 0) {
+      resolveLedgeWalls(actor, halfW, yNudge, prevX);
+    }
 
     const feetLeft = actor.x - halfW;
     const feetRight = actor.x + halfW;
@@ -1144,13 +1562,18 @@
 
       applyActorPhysics(e, e.w * 0.28, ENEMY_Y_NUDGE);
 
-      /* 走到台沿外：掉头或换目标 */
+      /* 走到台沿外：掉头；更高台阶：跳上去 */
       if (e.onGround) {
         const ahead = e.x + e.facing * 28;
-        if (surfaceAt(ahead) == null) {
+        const here = surfaceAt(e.x);
+        const next = surfaceAt(ahead);
+        if (next == null) {
           e.facing *= -1;
           e.targetX = pickBossTargetX(e);
           e.vx = e.facing * BOSS_MOVE;
+        } else if (here != null && next > here + MAX_WALK_STEP) {
+          e.vy = JUMP_V * 0.85;
+          e.onGround = false;
         }
       }
 
@@ -1168,23 +1591,19 @@
   }
 
   function updateCombat(heroW) {
-    if (hero.attackFrames > 0) {
-      hero.attackFrames -= 1;
-      if (hero.attackFrames <= 0) runner.classList.remove("is-attacking");
-    }
+    tickWeaponAnims();
     if (hero.hurtFrames > 0) {
       hero.hurtFrames -= 1;
       if (hero.hurtFrames <= 0) runner.classList.remove("is-hurt");
     }
+
+    tryAutoAttacks(heroW);
 
     const feetCenter = hero.x;
     const heroLeft = feetCenter - heroW * 0.28;
     const heroRight = feetCenter + heroW * 0.32;
     const heroBottom = hero.y;
     const heroTop = hero.y + 78;
-    const arcOx = feetCenter + hero.facing * heroW * 0.12;
-    const arcOy = hero.y + 46;
-    const attacking = hero.attackFrames > 0;
 
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
@@ -1193,12 +1612,6 @@
       const eRight = e.x + e.w * 0.45;
       const eBottom = e.y;
       const eTop = e.y + e.h;
-      const eCx = e.x;
-      const eCy = e.y + e.h * 0.42;
-
-      if (attacking && pointInFanArc(arcOx, arcOy, eCx, eCy, hero.facing)) {
-        hurtBoss(e, PLAYER_ATK);
-      }
 
       const vertOk = heroBottom < eTop - 8 && heroTop > eBottom + 8;
       const bodyHit =
@@ -1345,13 +1758,13 @@
   }
 
   function tickFight() {
-    if (hero.dead) return;
+    if (hero.dead || inShop) return;
 
     if (!paused) {
       let move = 0;
       if (keys.a) move -= 1;
       if (keys.d) move += 1;
-      hero.vx = move * MOVE_SPEED;
+      hero.vx = move * playerMoveSpeed();
       if (move !== 0) hero.facing = move;
 
       /* S：贴地时略下蹲减速，便于近战走位 */
@@ -1429,6 +1842,14 @@
     });
     startBtn.addEventListener("click", startGame);
 
+    shopSlots.forEach((btn, i) => {
+      btn.addEventListener("click", () => selectShopItem(i));
+    });
+    if (shopNextBtn) shopNextBtn.addEventListener("click", closeShopAndContinue);
+    if (shopBuyBtn) shopBuyBtn.addEventListener("click", buySelectedShopItem);
+    if (bagBtn) bagBtn.addEventListener("click", toggleBag);
+    if (bagCloseBtn) bagCloseBtn.addEventListener("click", () => setBagOpen(false));
+
     const keyMap = {
       KeyW: "w",
       KeyA: "a",
@@ -1443,14 +1864,35 @@
     window.addEventListener("keydown", (e) => {
       ensureAudio();
       const moveKey = keyMap[e.code];
-      if (moveKey) {
+      if (moveKey && !inShop) {
         keys[moveKey] = true;
         if (running) e.preventDefault();
       }
       if (e.code === "KeyP" || e.code === "Escape") {
+        if (inShop) {
+          e.preventDefault();
+          if (e.code === "Escape") closeShopAndContinue();
+          return;
+        }
         if (running) {
           e.preventDefault();
           togglePause();
+        }
+        return;
+      }
+      if (inShop) {
+        if (e.code === "ArrowLeft" || e.code === "KeyA") {
+          e.preventDefault();
+          shopFocus = shopFocus < 0 ? 0 : (shopFocus + shopSlots.length - 1) % shopSlots.length;
+          syncShopUi();
+        } else if (e.code === "ArrowRight" || e.code === "KeyD") {
+          e.preventDefault();
+          shopFocus = shopFocus < 0 ? 0 : (shopFocus + 1) % shopSlots.length;
+          syncShopUi();
+        } else if (e.code === "Enter" || e.code === "Space") {
+          e.preventDefault();
+          if (shopFocus < 0) selectShopItem(0);
+          else buySelectedShopItem();
         }
         return;
       }
@@ -1466,10 +1908,6 @@
       } else if (e.code === "Enter") {
         e.preventDefault();
         if (!running) startGame();
-      }
-      if (running && (e.code === "KeyJ" || e.code === "KeyF")) {
-        e.preventDefault();
-        tryAttack();
       }
       if (!running) {
         if (e.code === "ArrowLeft") selectHero("red");
