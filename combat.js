@@ -85,24 +85,15 @@
   const ATTACK_FRAMES = 26;
   const HURT_IFRAMES = 45;
   const ATTACK_REACH = 96 * 3;
-<<<<<<< HEAD
-  const SWORD_CD_MS = 500;
-  const FAN_CD_MS = 1000;
-=======
   const SWORD_CD_MS = 500; /* 已废弃：宝剑不再自动冷却攻击 */
   const FAN_CD_MS = 1000; /* 已废弃：扇子不再自动冷却攻击 */
->>>>>>> origin/main
   const SHOP_PRICE = 20;
   const SHOP_CATALOG = {
     baojian: {
       name: "宝剑",
       price: SHOP_PRICE,
       icon: "assets/shop/baojian.png",
-<<<<<<< HEAD
-      desc: "自动单体斩击（左右皆可），0.5 秒一次；攻击力 +2。可多次购买叠加。",
-=======
       desc: "点击挥砍单体斩击（左右皆可）；攻击力 +2。可多次购买叠加。",
->>>>>>> origin/main
       apply() {
         buffs.atk += 2;
       },
@@ -111,11 +102,7 @@
       name: "芭蕉扇",
       price: SHOP_PRICE,
       icon: "assets/shop/bajiaoshan.png",
-<<<<<<< HEAD
-      desc: "自动范围扇击，1 秒一次；范围 +48。可多次购买叠加。",
-=======
       desc: "点击挥砍范围扇击；范围 +48。可多次购买叠加。",
->>>>>>> origin/main
       apply() {
         buffs.reach += 48;
       },
@@ -213,11 +200,8 @@
   let lastBossAt = -9999;
   let flatStreak = 0;
   let selected = "blue";
-<<<<<<< HEAD
-=======
   let heroLives = START_LIVES;
   let gameOver = false;
->>>>>>> origin/main
   let started = false;
   let running = false;
   let paused = false;
@@ -595,8 +579,6 @@
     playTone({ freq: 180, dur: 0.08, type: "square", vol: 0.07, slide: 90 });
   }
 
-<<<<<<< HEAD
-=======
   /** 掉命：短促偏高两声（类马里奥踩怪，无下滑、不闷） */
   function sfxLifeLost() {
     playTone({ freq: 1175, dur: 0.045, type: "square", vol: 0.085 });
@@ -615,7 +597,6 @@
     portrait.addEventListener("animationend", clear, { once: true });
   }
 
->>>>>>> origin/main
   function pointInAttackArc(ox, oy, px, py, facing, reach) {
     const dx = (px - ox) * (facing < 0 ? -1 : 1);
     const dy = py - oy;
@@ -840,10 +821,24 @@
     syncWeaponVisual();
   }
 
+  function ownedShopSummary() {
+    const parts = [];
+    Object.keys(SHOP_CATALOG).forEach((id) => {
+      const qty = shopBought[id] | 0;
+      if (qty > 0) parts.push(`${SHOP_CATALOG[id].name}×${qty}`);
+    });
+    return parts.join(" · ");
+  }
+
   function syncShopTip() {
     if (shopFocus < 0 || !shopSlots[shopFocus]) {
-      if (shopTipName) shopTipName.textContent = "点击商品查看详情";
-      if (shopTipDesc) shopTipDesc.textContent = "选中后点购买；备好后点「进入下一关」继续闯关";
+      const summary = ownedShopSummary();
+      if (shopTipName) shopTipName.textContent = summary ? "已持有法宝" : "点击商品查看详情";
+      if (shopTipDesc) {
+        shopTipDesc.textContent = summary
+          ? summary
+          : "选中后点购买；备好后点「进入下一关」继续闯关";
+      }
       return;
     }
     const id = shopSlots[shopFocus].dataset.item;
@@ -863,10 +858,23 @@
       const id = btn.dataset.item;
       const item = SHOP_CATALOG[id];
       if (!item) return;
+      const owned = shopBought[id] | 0;
       btn.classList.toggle("is-focus", i === shopFocus);
       btn.classList.toggle("is-broke", coinCount < item.price);
+      btn.classList.toggle("is-owned", owned > 0);
       const priceEl = btn.querySelector(".shop-slot__price b");
       if (priceEl) priceEl.textContent = String(item.price);
+      const frame = btn.querySelector(".shop-slot__frame");
+      let ownedEl = btn.querySelector(".shop-slot__owned");
+      if (!ownedEl && frame) {
+        ownedEl = document.createElement("span");
+        ownedEl.className = "shop-slot__owned";
+        frame.appendChild(ownedEl);
+      }
+      if (ownedEl) {
+        ownedEl.textContent = `x${owned}`;
+        ownedEl.hidden = owned <= 0;
+      }
     });
     if (shopBuyBtn) {
       const sel = shopFocus >= 0 ? shopSlots[shopFocus] : null;
@@ -1564,11 +1572,7 @@
   }
 
   function togglePause() {
-<<<<<<< HEAD
-    if (!running || inShop) return;
-=======
     if (!running || inShop || gameOver) return;
->>>>>>> origin/main
     setPaused(!paused);
   }
 
@@ -1588,9 +1592,6 @@
     runner.classList.remove(cls);
     void runner.offsetWidth;
     runner.classList.add("is-attacking", cls);
-<<<<<<< HEAD
-    sfxAttack();
-=======
     if (kind === "sword") sfxWhoosh();
     else sfxAttack();
   }
@@ -1663,7 +1664,6 @@
       renderHp();
       resetHeroOnTrack();
     }, delay);
->>>>>>> origin/main
   }
 
   function tickWeaponAnims() {
@@ -2125,11 +2125,8 @@
     if (shopBuyBtn) shopBuyBtn.addEventListener("click", buySelectedShopItem);
     if (bagBtn) bagBtn.addEventListener("click", toggleBag);
     if (bagCloseBtn) bagCloseBtn.addEventListener("click", () => setBagOpen(false));
-<<<<<<< HEAD
-=======
     if (gameoverContinueBtn) gameoverContinueBtn.addEventListener("click", continueChallenge);
     if (gameoverQuitBtn) gameoverQuitBtn.addEventListener("click", quitGame);
->>>>>>> origin/main
 
     const keyMap = {
       KeyW: "w",
