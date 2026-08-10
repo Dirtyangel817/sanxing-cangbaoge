@@ -566,14 +566,15 @@ img, canvas {
 
 .pickup-coin {
   position: absolute;
+  left: 0;
+  bottom: 0;
   width: 86px;
   height: 86px;
   margin-left: -43px;
   z-index: 400;
   image-rendering: pixelated;
-  filter: drop-shadow(1px 2px 0 #0008);
-  animation: coin-spin 0.9s steps(4, end) infinite;
-  transform-origin: 50% 50%;
+  /* 去掉持续旋转/阴影，大量金币时很吃性能 */
+  contain: layout style paint;
 }
 .pickup-coin.is-got {
   animation: coin-pop 0.28s ease forwards;
@@ -582,12 +583,15 @@ img, canvas {
 
 .enemy {
   position: absolute;
+  left: 0;
+  bottom: 0;
   width: 203px;
   margin-left: -102px;
   transform-origin: 50% 100%;
-  /* 高于地形拼接 zIndex�?0+x），保证天兵在平台前�?*/
   z-index: 8000;
   pointer-events: none;
+  will-change: transform;
+  contain: layout style;
 }
 .enemy__sprite {
   display: block;
@@ -595,14 +599,13 @@ img, canvas {
   height: auto;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
-  filter: drop-shadow(2px 2px 0 #0008);
   transform-origin: 50% 100%;
 }
 .enemy.is-facing-left .enemy__sprite {
   transform: scaleX(-1);
 }
 .enemy.is-hurt .enemy__sprite {
-  filter: drop-shadow(2px 2px 0 #0008) saturate(0.25) brightness(1.45);
+  filter: saturate(0.25) brightness(1.45);
   animation: hurt-flash 0.1s steps(2, end) infinite;
 }
 .boss-hp {
@@ -636,7 +639,7 @@ img, canvas {
   animation: enemy-die 0.35s steps(3, end) forwards;
 }
 .runner.is-hurt .runner__sprite {
-  filter: drop-shadow(2px 2px 0 #0008) saturate(0.2) brightness(1.4);
+  filter: saturate(0.2) brightness(1.4);
   animation: hurt-flash 0.12s steps(2, end) infinite;
 }
 .runner.is-attacking .runner__sprite {
@@ -728,8 +731,6 @@ img, canvas {
   transform-origin: 14% 86%;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
-  filter: drop-shadow(1px 2px 0 #0008);
-  will-change: transform;
 }
 .weapon-sprite--sword {
   width: clamp(78px, 10vw, 106px);
@@ -986,15 +987,16 @@ img, canvas {
 
 .runner {
   position: absolute;
-  left: var(--hero-x);
-  bottom: 96px;
+  left: 0;
+  bottom: 0;
   z-index: 500;
   width: clamp(72px, 12vw, 110px);
   overflow: visible;
   transform-origin: 50% 100%;
   pointer-events: none;
-  will-change: left, bottom;
+  will-change: transform;
   margin-left: -36px;
+  contain: layout style;
 }
 .runner__shadow {
   position: absolute;
@@ -1010,7 +1012,6 @@ img, canvas {
   width: 100%;
   height: auto;
   margin: 0 auto;
-  filter: drop-shadow(2px 2px 0 #0008);
   transform-origin: 50% 100%;
   image-rendering: pixelated;
   image-rendering: crisp-edges;

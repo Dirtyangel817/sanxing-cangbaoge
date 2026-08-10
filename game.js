@@ -1016,8 +1016,9 @@
     el.src = coinImgUrl;
     el.alt = "";
     el.draggable = false;
-    el.style.left = `${x}px`;
-    el.style.bottom = `${y}px`;
+    const ix = (x + 0.5) | 0;
+    const iy = (y + 0.5) | 0;
+    el.style.transform = `translate3d(${ix}px, ${-iy}px, 0)`;
     trackWorld.appendChild(el);
     coins.push({ x, y, el, got: false });
   }
@@ -1040,10 +1041,23 @@
   }
 
   function syncBossEl(boss) {
-    boss.el.style.left = `${boss.x}px`;
-    boss.el.style.bottom = `${boss.y}px`;
-    boss.el.classList.toggle("is-facing-left", boss.facing < 0);
-    boss.el.classList.toggle("is-hurt", boss.hurtFrames > 0);
+    const x = (boss.x + 0.5) | 0;
+    const y = (boss.y + 0.5) | 0;
+    if (boss._sx !== x || boss._sy !== y) {
+      boss._sx = x;
+      boss._sy = y;
+      boss.el.style.transform = `translate3d(${x}px, ${-y}px, 0)`;
+    }
+    const faceLeft = boss.facing < 0;
+    if (boss._faceLeft !== faceLeft) {
+      boss._faceLeft = faceLeft;
+      boss.el.classList.toggle("is-facing-left", faceLeft);
+    }
+    const hurt = boss.hurtFrames > 0;
+    if (boss._hurt !== hurt) {
+      boss._hurt = hurt;
+      boss.el.classList.toggle("is-hurt", hurt);
+    }
   }
 
   function pickBossTargetX(boss) {
@@ -1065,8 +1079,7 @@
     const maxHp = bossHpForStage(stage);
     const wrap = document.createElement("div");
     wrap.className = "enemy boss";
-    wrap.style.left = `${x}px`;
-    wrap.style.bottom = `${y}px`;
+    wrap.style.transform = `translate3d(${(x + 0.5) | 0}px, ${-((y + 0.5) | 0)}px, 0)`;
     wrap.style.zIndex = "8000";
     const img = document.createElement("img");
     img.className = "enemy__sprite";
@@ -1098,6 +1111,10 @@
       think: 20 + ((Math.random() * 40) | 0),
       targetX: x,
       onGround: true,
+      _sx: (x + 0.5) | 0,
+      _sy: (y + 0.5) | 0,
+      _faceLeft: null,
+      _hurt: null,
     };
     enemies.push(boss);
     lastBossAt = x;
@@ -1293,11 +1310,23 @@
   }
 
   function syncHeroEl() {
-    runner.style.left = `${hero.x - runScroll.world}px`;
-    runner.style.bottom = `${hero.y}px`;
-    runner.classList.toggle("is-facing-left", hero.facing < 0);
+    const sx = ((hero.x - runScroll.world) + 0.5) | 0;
+    const sy = (hero.y + 0.5) | 0;
+    if (hero._sx !== sx || hero._sy !== sy) {
+      hero._sx = sx;
+      hero._sy = sy;
+      runner.style.transform = `translate3d(${sx}px, ${-sy}px, 0)`;
+    }
+    const faceLeft = hero.facing < 0;
+    if (hero._faceLeft !== faceLeft) {
+      hero._faceLeft = faceLeft;
+      runner.classList.toggle("is-facing-left", faceLeft);
+    }
     const moving = Math.abs(hero.vx) > 0.2 && hero.onGround;
-    runner.classList.toggle("is-moving", moving);
+    if (hero._moving !== moving) {
+      hero._moving = moving;
+      runner.classList.toggle("is-moving", moving);
+    }
   }
 
   function updateParallax() {
@@ -1306,9 +1335,12 @@
 
     const place = (el, depthX, depthY) => {
       if (!el) return;
-      const x = -viewFx.x * shift * depthX;
-      const y = -viewFx.y * depthY;
-      el.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`;
+      const x = ((-viewFx.x * shift * depthX) * 2 + 0.5) | 0;
+      const y = ((-viewFx.y * depthY) * 2 + 0.5) | 0;
+      if (el._px === x && el._py === y) return;
+      el._px = x;
+      el._py = y;
+      el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
     };
 
     place(runBackArt, 0.22, 0.18);
@@ -1338,8 +1370,11 @@
     viewFx.x += (targetX - viewFx.x) * 0.22;
     viewFx.y += (targetY - viewFx.y) * 0.08;
 
-    trackWorld.style.transform = `translate3d(${(-runScroll.world).toFixed(2)}px, 0, 0)`;
-    runner.style.transform = "";
+    const camX = (runScroll.world + 0.5) | 0;
+    if (trackWorld._camX !== camX) {
+      trackWorld._camX = camX;
+      trackWorld.style.transform = `translate3d(${-camX}px, 0, 0)`;
+    }
     updateParallax();
   }
 
