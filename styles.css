@@ -644,10 +644,6 @@ img, canvas {
   width: 203px;
   margin-left: -102px;
   transform-origin: 50% 100%;
-<<<<<<< HEAD
-  /* 高于地形拼接 zIndex�?0+x），保证天兵在平台前�?*/
-=======
->>>>>>> origin/main
   z-index: 8000;
   pointer-events: none;
   will-change: transform;
@@ -791,11 +787,6 @@ img, canvas {
   transform-origin: 14% 86%;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
-<<<<<<< HEAD
-  filter: drop-shadow(1px 2px 0 #0008);
-  will-change: transform;
-=======
->>>>>>> origin/main
 }
 .weapon-sprite--sword {
   width: clamp(78px, 10vw, 106px);
@@ -866,19 +857,11 @@ img, canvas {
   animation-delay: var(--stack-delay, 0s);
 }
 .runner.is-attacking-sword .weapon-arc--sword {
-<<<<<<< HEAD
-  animation: sword-arc-flash 0.38s ease-out both;
-  animation-delay: var(--stack-delay, 0s);
-}
-.runner.is-attacking-fan .weapon-arm--fan {
-  animation: sword-arm-slash 0.38s cubic-bezier(0.18, 0.55, 0.22, 1) both;
-=======
   animation: sword-arc-flash 0.22s ease-out both;
   animation-delay: var(--stack-delay, 0s);
 }
 .runner.is-attacking-fan .weapon-arm--fan {
   animation: fan-arm-slash 0.38s cubic-bezier(0.18, 0.55, 0.22, 1) both;
->>>>>>> origin/main
   animation-delay: var(--stack-delay, 0s);
 }
 .runner.is-attacking-fan .weapon-sprite--fan {
@@ -969,10 +952,6 @@ img, canvas {
  * x = a·sin(φ), y = -b·cos(φ), φ: 0→π
  * 起点上扬 → 最远端在正前方 → 终点下压
  */
-<<<<<<< HEAD
-@keyframes sword-arm-slash {
-  0% {
-=======
 /* 宝剑：手里挥砍约 78°，不整圈翻转 */
 @keyframes sword-arm-slash {
   0% {
@@ -1022,7 +1001,6 @@ img, canvas {
 }
 @keyframes fan-arm-slash {
   0% {
->>>>>>> origin/main
     transform: translate3d(0px, -30px, 0) rotate(-48deg);
   }
   18% {
@@ -1032,10 +1010,6 @@ img, canvas {
     transform: translate3d(38px, -14px, 0) rotate(8deg);
   }
   52% {
-<<<<<<< HEAD
-    /* 椭圆最前端 */
-=======
->>>>>>> origin/main
     transform: translate3d(48px, 0px, 0) rotate(38deg);
   }
   72% {
@@ -1045,51 +1019,6 @@ img, canvas {
     transform: translate3d(8px, 32px, 0) rotate(112deg);
   }
 }
-<<<<<<< HEAD
-@keyframes sword-arm-slash-left {
-  0% {
-    transform: scaleX(-1) translate3d(0px, -30px, 0) rotate(-48deg);
-  }
-  18% {
-    transform: scaleX(-1) translate3d(18px, -26px, 0) rotate(-22deg);
-  }
-  36% {
-    transform: scaleX(-1) translate3d(38px, -14px, 0) rotate(8deg);
-  }
-  52% {
-    transform: scaleX(-1) translate3d(48px, 0px, 0) rotate(38deg);
-  }
-  72% {
-    transform: scaleX(-1) translate3d(36px, 18px, 0) rotate(78deg);
-  }
-  100% {
-    transform: scaleX(-1) translate3d(8px, 32px, 0) rotate(112deg);
-  }
-}
-/* 剑身绕柄翻刃，配合半椭圆前伸 */
-@keyframes sword-blade-spin {
-  0%   { transform: rotate(-15deg); }
-  22%  { transform: rotate(25deg); }
-  50%  { transform: rotate(90deg); }
-  78%  { transform: rotate(145deg); }
-  100% { transform: rotate(170deg); }
-}
-@keyframes sword-blade-spin-left {
-  0%   { transform: rotate(-15deg); }
-  22%  { transform: rotate(25deg); }
-  50%  { transform: rotate(90deg); }
-  78%  { transform: rotate(145deg); }
-  100% { transform: rotate(170deg); }
-}
-@keyframes fan-blade-spin {
-  0%   { transform: rotate(-12deg); }
-  22%  { transform: rotate(30deg); }
-  50%  { transform: rotate(95deg); }
-  78%  { transform: rotate(150deg); }
-  100% { transform: rotate(175deg); }
-}
-=======
->>>>>>> origin/main
 @keyframes sword-arc-flash {
   0%   { opacity: 0; transform: scale(0.72) skewX(-10deg); }
   16%  { opacity: 0.85; transform: scale(0.95) skewX(-4deg); }
@@ -1120,14 +1049,14 @@ img, canvas {
   position: absolute;
   left: 0;
   bottom: 0;
-  z-index: 500;
+  z-index: 9000;
   width: clamp(72px, 12vw, 110px);
+  min-height: 72px;
   overflow: visible;
   transform-origin: 50% 100%;
   pointer-events: none;
   will-change: transform;
   margin-left: -36px;
-  contain: layout style;
 }
 .runner__shadow {
   position: absolute;
@@ -1142,10 +1071,14 @@ img, canvas {
   display: block;
   width: 100%;
   height: auto;
+  min-height: 64px;
   margin: 0 auto;
   transform-origin: 50% 100%;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+  filter: drop-shadow(1px 2px 0 #000a);
+  opacity: 1;
+  visibility: visible;
 }
 .runner.is-moving:not(.is-air) .runner__sprite {
   animation: run-cycle 0.18s steps(2, end) infinite;

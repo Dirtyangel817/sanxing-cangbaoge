@@ -504,17 +504,25 @@
 
   async function setRunnerSprite(heroId) {
     const src = HERO_SRC[heroId] || HERO_SRC.red;
+    if (!runnerSprite || !runner) return;
     runner.dataset.hero = heroId;
-    /* 立绘 PNG 已是透明底，直接显示；再抠图会卡死或把黑发一并抠掉 */
-    runnerSprite.removeAttribute("src");
-    runnerSprite.src = `${src}?v=charsfix1`;
-    if (runnerSprite.decode) {
-      try {
-        await runnerSprite.decode();
-      } catch (_) {
-        /* ignore decode errors; src still set */
-      }
+    /*
+     * 立绘有大块黑底，直接叠在深色跑道上几乎看不见。
+     * 先缩小再从边缘抠掉连通黑底（黄描边拦住，不会抠掉黑发）。
+     */
+    try {
+      const img = await loadImage(src);
+      const small = downsampleImage(img, 360);
+      const punched = punchSpriteBg(small, 250);
+      runnerSprite.src = punched.toDataURL("image/png");
+    } catch (err) {
+      console.warn("runner sprite punch failed, using raw", err);
+      runnerSprite.src = src;
     }
+    runnerSprite.style.opacity = "1";
+    runnerSprite.style.visibility = "visible";
+    runner.style.opacity = "1";
+    runner.style.visibility = "visible";
   }
 
   async function prepareCoinArt() {
@@ -2027,19 +2035,31 @@
     if (gameoverOverlay) gameoverOverlay.hidden = true;
     game.classList.remove("is-gameover");
     syncPartyHud();
-    await Promise.all([
-      setRunnerSprite(selected),
+
+    /* 先露出跑道，避免资源处理失败时整关空白 */
+    if (runway) {
+      runway.hidden = false;
+      runway.removeAttribute("hidden");
+    }
+    game.classList.add("is-running");
+    if (runner) runner.classList.add("is-fighting");
+
+    try {
+      await setRunnerSprite(selected);
+    } catch (err) {
+      console.warn("setRunnerSprite", err);
+    }
+    await Promise.allSettled([
       prepareCoinArt(),
       prepareEnemyArt(),
       prepareFloorArt(),
     ]);
-    runway.hidden = false;
-    game.classList.add("is-running");
-    runner.classList.add("is-fighting");
+
     initTrack();
     running = true;
     setPaused(false);
-    if (!loadingPage.hidden) await hideLoadingPage();
+    syncHeroEl();
+    if (loadingPage && !loadingPage.hidden) await hideLoadingPage();
   }
 
   async function startGame() {
