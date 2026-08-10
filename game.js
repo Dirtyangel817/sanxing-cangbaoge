@@ -95,7 +95,7 @@
       name: "芭蕉扇",
       price: SHOP_PRICE,
       icon: "assets/shop/bajiaoshan.png",
-      desc: "自动范围扇击，1 秒一次；范围 +48。可多次购买叠加。",
+      desc: "点击挥砍范围扇击；范围 +48。可多次购买叠加。",
       apply() {
         buffs.reach += 48;
       },
@@ -1491,40 +1491,39 @@
     }
   }
 
-  function trySwordSwing() {
+  /** 点击手动攻击：宝剑单体 + 芭蕉扇范围，均不自动 */
+  function tryPlayerAttack() {
     if (!running || paused || hero.dead || inShop) return false;
-    if (!hasSword()) return false;
-    if (hero.swordAnimFrames > 0) return false;
+    if (!hasMeleeVisual()) return false;
+    if (hero.swordAnimFrames > 0 || hero.fanAnimFrames > 0) return false;
 
     const heroW = runner.offsetWidth || 90;
-    const swordOx = hero.x;
-    const swordOy = hero.y + 46;
-    const hitsL = enemiesInArc(swordOx, swordOy, -1, swordReach());
-    const hitsR = enemiesInArc(swordOx, swordOy, 1, swordReach());
-    const hits = hitsL.concat(hitsR.filter((e) => !hitsL.includes(e)));
-    const target = nearestEnemy(hits, swordOx, swordOy);
-    if (target) {
-      hero.facing = target.x < hero.x ? -1 : 1;
-      hurtBoss(target, playerAtk());
-    }
-    playWeaponAnim("sword");
-    return true;
-  }
+    let did = false;
 
-  function tryAutoAttacks(heroW) {
-    if (!running || paused || hero.dead || inShop) return;
-    const now = performance.now();
-    const { ox, oy } = attackOrigin(heroW);
-
-    /* 宝剑改为点击挥砍；芭蕉扇仍自动 */
-    if (hasFan() && now >= hero.fanReadyAt) {
-      const hits = enemiesInArc(ox, oy, hero.facing, fanReach());
-      if (hits.length) {
-        for (let i = 0; i < hits.length; i++) hurtBoss(hits[i], playerAtk());
-        playWeaponAnim("fan");
-        hero.fanReadyAt = now + FAN_CD_MS;
+    if (hasSword()) {
+      const swordOx = hero.x;
+      const swordOy = hero.y + 46;
+      const hitsL = enemiesInArc(swordOx, swordOy, -1, swordReach());
+      const hitsR = enemiesInArc(swordOx, swordOy, 1, swordReach());
+      const hits = hitsL.concat(hitsR.filter((e) => !hitsL.includes(e)));
+      const target = nearestEnemy(hits, swordOx, swordOy);
+      if (target) {
+        hero.facing = target.x < hero.x ? -1 : 1;
+        hurtBoss(target, playerAtk());
       }
+      playWeaponAnim("sword");
+      did = true;
     }
+
+    if (hasFan()) {
+      const { ox, oy } = attackOrigin(heroW);
+      const hits = enemiesInArc(ox, oy, hero.facing, fanReach());
+      for (let i = 0; i < hits.length; i++) hurtBoss(hits[i], playerAtk());
+      playWeaponAnim("fan");
+      did = true;
+    }
+
+    return did;
   }
 
   function takeDamage(amount) {
@@ -1670,8 +1669,6 @@
       hero.hurtFrames -= 1;
       if (hero.hurtFrames <= 0) runner.classList.remove("is-hurt");
     }
-
-    tryAutoAttacks(heroW);
 
     const feetCenter = hero.x;
     const heroLeft = feetCenter - heroW * 0.28;
@@ -1921,7 +1918,7 @@
       ) {
         return;
       }
-      trySwordSwing();
+      tryPlayerAttack();
     });
     window.addEventListener("pointerup", () => cursor.classList.remove("is-press"));
 
