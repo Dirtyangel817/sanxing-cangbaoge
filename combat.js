@@ -4,13 +4,24 @@
   const boot = document.getElementById("boot");
   const game = document.getElementById("game");
   const frame = document.getElementById("scene-frame");
-  const layers = [...frame.querySelectorAll(".layer")];
+  const layers = frame ? [...frame.querySelectorAll(".layer")] : [];
   const cursor = document.getElementById("cursor");
   const startBtn = document.getElementById("start-btn");
   const toast = document.getElementById("toast");
   const loadingPage = document.getElementById("loading-page");
-  /* BUILD: click-only-attack — 无任何自动攻击 */
-  console.info("[三星藏宝阁] 攻击方式：仅鼠标点击，无自动攻击");
+  /* BUILD: click-only-attack — no auto attack */
+
+  function forceShowGame() {
+    if (boot && boot.isConnected) boot.remove();
+    if (loadingPage) {
+      loadingPage.hidden = true;
+      loadingPage.classList.remove("is-show");
+    }
+    if (game) game.hidden = false;
+  }
+
+  /* 防止异常卡死在 LOADING */
+  setTimeout(forceShowGame, 2200);
 
   const runway = document.getElementById("runway");
   const runner = document.getElementById("runner");
@@ -1735,49 +1746,9 @@
     }, delay);
   }
 
-  function tickWeaponAnims() {
-    if (hero.swordAnimFrames > 0) {
-      hero.swordAnimFrames -= 1;
-      if (hero.swordAnimFrames <= 0) runner.classList.remove("is-attacking-sword");
-    }
-    if (hero.fanAnimFrames > 0) {
-      hero.fanAnimFrames -= 1;
-      if (hero.fanAnimFrames <= 0) runner.classList.remove("is-attacking-fan");
-    }
-    if (hero.swordAnimFrames <= 0 && hero.fanAnimFrames <= 0) {
-      runner.classList.remove("is-attacking");
-    }
-  }
-
-  function tryAutoAttacks(heroW) {
-    if (!running || paused || hero.dead || inShop) return;
-    const now = performance.now();
-    const swordOx = hero.x;
-    const swordOy = hero.y + 46;
-    const { ox, oy } = attackOrigin(heroW);
-
-    if (hasSword() && now >= hero.swordReadyAt) {
-      /* 宝剑：左右两侧都能打，优先最近目标 */
-      const hitsL = enemiesInArc(swordOx, swordOy, -1, swordReach());
-      const hitsR = enemiesInArc(swordOx, swordOy, 1, swordReach());
-      const hits = hitsL.concat(hitsR.filter((e) => !hitsL.includes(e)));
-      const target = nearestEnemy(hits, swordOx, swordOy);
-      if (target) {
-        hero.facing = target.x < hero.x ? -1 : 1;
-        hurtBoss(target, playerAtk());
-        playWeaponAnim("sword");
-        hero.swordReadyAt = now + SWORD_CD_MS;
-      }
-    }
-
-    if (hasFan() && now >= hero.fanReadyAt) {
-      const hits = enemiesInArc(ox, oy, hero.facing, fanReach());
-      if (hits.length) {
-        for (let i = 0; i < hits.length; i++) hurtBoss(hits[i], playerAtk());
-        playWeaponAnim("fan");
-        hero.fanReadyAt = now + FAN_CD_MS;
-      }
-    }
+  /** 已关闭自动攻击：保留空函数以免旧调用报错 */
+  function tryAutoAttacks() {
+    return;
   }
 
   function takeDamage(amount) {
@@ -2153,8 +2124,8 @@
       tickFight();
     }
 
-    const press = cursor.classList.contains("is-press") ? " scale(0.88)" : "";
-    cursor.style.transform = `translate3d(${cursorPos.x}px, ${cursorPos.y}px, 0)${press}`;
+    const press = cursor && cursor.classList.contains("is-press") ? " scale(0.88)" : "";
+    if (cursor) cursor.style.transform = `translate3d(${cursorPos.x}px, ${cursorPos.y}px, 0)${press}`;
     requestAnimationFrame(tick);
   }
 
@@ -2195,7 +2166,7 @@
     document.querySelectorAll(".hero-slot").forEach((btn) => {
       btn.addEventListener("click", () => selectHero(btn.dataset.hero));
     });
-    startBtn.addEventListener("click", startGame);
+    if (startBtn) startBtn.addEventListener("click", startGame);
 
     shopSlots.forEach((btn, i) => {
       btn.addEventListener("click", () => selectShopItem(i));
@@ -2281,24 +2252,34 @@
   }
 
   async function init() {
-    bind();
-    requestAnimationFrame(tick);
-    drawCoinCount("x000");
-    syncPartyHud();
+    try {
+      bind();
+      requestAnimationFrame(tick);
+      drawCoinCount("x000");
+      syncPartyHud();
 
-    if (SKIP_INTRO) {
-      boot.remove();
-      loadingPage.hidden = true;
-      game.hidden = false;
+      if (SKIP_INTRO) {
+        forceShowGame();
+        await prepareAssets();
+        await enterRunMode();
+        return;
+      }
+
+      if (boot) boot.classList.add("is-done");
+      if (game) game.hidden = false;
+      setTimeout(() => {
+        if (boot && boot.isConnected) boot.remove();
+      }, 350);
       await prepareAssets();
-      await enterRunMode();
-      return;
+    } catch (err) {
+      console.error("[cangbaoge] init failed", err);
+      forceShowGame();
+      if (toast) {
+        toast.hidden = false;
+        toast.textContent = "加载异常，请强制刷新重试";
+        toast.classList.add("is-show");
+      }
     }
-
-    boot.classList.add("is-done");
-    game.hidden = false;
-    setTimeout(() => boot.remove(), 350);
-    await prepareAssets();
   }
 
   init();
