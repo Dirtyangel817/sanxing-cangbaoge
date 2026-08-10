@@ -86,7 +86,7 @@
       name: "宝剑",
       price: SHOP_PRICE,
       icon: "assets/shop/baojian.png",
-      desc: "自动单体斩击（左右皆可），0.5 秒一次；攻击力 +2。可多次购买叠加。",
+      desc: "点击挥砍单体斩击（左右皆可）；攻击力 +2。可多次购买叠加。",
       apply() {
         buffs.atk += 2;
       },
@@ -1491,27 +1491,32 @@
     }
   }
 
+  function trySwordSwing() {
+    if (!running || paused || hero.dead || inShop) return false;
+    if (!hasSword()) return false;
+    if (hero.swordAnimFrames > 0) return false;
+
+    const heroW = runner.offsetWidth || 90;
+    const swordOx = hero.x;
+    const swordOy = hero.y + 46;
+    const hitsL = enemiesInArc(swordOx, swordOy, -1, swordReach());
+    const hitsR = enemiesInArc(swordOx, swordOy, 1, swordReach());
+    const hits = hitsL.concat(hitsR.filter((e) => !hitsL.includes(e)));
+    const target = nearestEnemy(hits, swordOx, swordOy);
+    if (target) {
+      hero.facing = target.x < hero.x ? -1 : 1;
+      hurtBoss(target, playerAtk());
+    }
+    playWeaponAnim("sword");
+    return true;
+  }
+
   function tryAutoAttacks(heroW) {
     if (!running || paused || hero.dead || inShop) return;
     const now = performance.now();
-    const swordOx = hero.x;
-    const swordOy = hero.y + 46;
     const { ox, oy } = attackOrigin(heroW);
 
-    if (hasSword() && now >= hero.swordReadyAt) {
-      /* 宝剑：有怪打最近的；没怪也按时挥砍 */
-      const hitsL = enemiesInArc(swordOx, swordOy, -1, swordReach());
-      const hitsR = enemiesInArc(swordOx, swordOy, 1, swordReach());
-      const hits = hitsL.concat(hitsR.filter((e) => !hitsL.includes(e)));
-      const target = nearestEnemy(hits, swordOx, swordOy);
-      if (target) {
-        hero.facing = target.x < hero.x ? -1 : 1;
-        hurtBoss(target, playerAtk());
-      }
-      playWeaponAnim("sword");
-      hero.swordReadyAt = now + SWORD_CD_MS;
-    }
-
+    /* 宝剑改为点击挥砍；芭蕉扇仍自动 */
     if (hasFan() && now >= hero.fanReadyAt) {
       const hits = enemiesInArc(ox, oy, hero.facing, fanReach());
       if (hits.length) {
@@ -1900,9 +1905,23 @@
       mouse.ty = 0.5;
       cursor.classList.remove("is-on");
     });
-    window.addEventListener("pointerdown", () => {
+    window.addEventListener("pointerdown", (e) => {
       cursor.classList.add("is-press");
       ensureAudio();
+      if (!running || paused || inShop || hero.dead) return;
+      const t = e.target;
+      if (
+        t &&
+        t.closest &&
+        (t.closest(".bag-btn") ||
+          t.closest(".bag-panel") ||
+          t.closest(".shop") ||
+          t.closest(".pause-overlay") ||
+          t.closest("button"))
+      ) {
+        return;
+      }
+      trySwordSwing();
     });
     window.addEventListener("pointerup", () => cursor.classList.remove("is-press"));
 
