@@ -1151,7 +1151,7 @@ img, canvas {
   padding: 20px;
   background:
     linear-gradient(#061028ee, #061028f5),
-    url("assets/main/main_bg1.png") center / cover no-repeat;
+    url("assets/main/main_bg1.png?v=bg2") center / cover no-repeat;
   image-rendering: pixelated;
   pointer-events: auto;
   cursor: auto;
@@ -1430,7 +1430,7 @@ img, canvas {
   place-items: center;
   background:
     linear-gradient(#061028cc, #061028e6),
-    url("assets/main/main_bg1.png") center / cover no-repeat;
+    url("assets/main/main_bg1.png?v=bg2") center / cover no-repeat;
   pointer-events: auto;
   cursor: auto;
   animation: panel-in 0.28s ease-out;
