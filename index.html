@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Tiny5&family=Silkscreen:wght@400;700&family=ZCOOL+QingKe+HuangYou&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=runnerfix1" />
+  <link rel="stylesheet" href="styles.css?v=combo18" />
 </head>
 <body>
   <div id="boot" class="boot"><p class="boot-text">LOADING...</p></div>
@@ -82,13 +82,13 @@
     <section id="runway" class="runway" hidden aria-label="格斗场地">
       <div class="runway-sky" aria-hidden="true">
         <div class="run-parallax run-parallax--back" id="run-back" title="远景">
-          <div class="run-parallax__art" style="background-image:url('assets/main/main_bg1.png')"></div>
+          <div class="run-parallax__art" style="background-image:url('assets/main/main_bg1.png?v=bg3')"></div>
         </div>
         <div class="run-parallax run-parallax--mid" id="run-mid" title="中景">
-          <div class="run-parallax__art" style="background-image:url('assets/main/main_bg2.png')"></div>
+          <div class="run-parallax__art" style="background-image:url('assets/main/main_bg2.png?v=bg3')"></div>
         </div>
         <div class="run-parallax run-parallax--front" id="run-front" title="近景">
-          <div class="run-parallax__art" style="background-image:url('assets/main/main_bg3.png')"></div>
+          <div class="run-parallax__art" style="background-image:url('assets/main/main_bg3.png?v=bg3')"></div>
         </div>
       </div>
       <div class="runway-abyss" aria-hidden="true"></div>
@@ -97,11 +97,23 @@
       </div>
       <div class="runner" id="runner">
         <div class="runner__shadow" aria-hidden="true"></div>
-        <img class="runner__sprite" id="runner-sprite" alt="" width="128" height="128" draggable="false" />
-        <div class="weapon-rack" id="weapon-rack" hidden></div>
+        <div class="runner__body" id="player-body">
+          <div class="player-feet" id="player-feet" aria-hidden="true">
+            <img class="player-foot player-foot--left" id="player-foot-left" alt="" draggable="false" />
+            <img class="player-foot player-foot--right" id="player-foot-right" alt="" draggable="false" />
+          </div>
+          <img class="runner__sprite" id="runner-sprite" alt="" width="128" height="128" draggable="false" />
+          <div class="weapon-rack" id="weapon-rack" hidden></div>
+          <div class="arm-socket" id="arm-socket" hidden>
+            <!-- 弧光在剑下层，参考 zuhefangfa：剑尖切入弧内侧 -->
+            <div class="slash-vfx" id="slash-vfx" hidden aria-hidden="true"></div>
+            <img class="arm-weapon" id="arm-weapon" alt="" draggable="false" />
+          </div>
+        </div>
         <div class="fan-arc" id="fan-arc" aria-hidden="true"></div>
       </div>
-      <p class="run-hint">WASD 移动 · 空格跳 · 仅点击攻击（无自动） · P/Esc 暂停</p>
+      <div class="combo-stage" id="combo-stage" hidden aria-hidden="true"></div>
+      <p class="run-hint">WASD 移动 · 空格跳 · 点击攻击 · P/Esc 暂停 · F9 槽位Debug</p>
       <div id="pause-overlay" class="pause-overlay" hidden>
         <p class="pause-overlay__title">暂停</p>
         <p class="pause-overlay__hint">按 P / Esc 继续</p>
@@ -110,10 +122,10 @@
 
     <div id="gameover-overlay" class="gameover-overlay" hidden>
       <div class="gameover-overlay__panel" role="dialog" aria-label="结算">
-        <p class="gameover-overlay__title">命数耗尽</p>
-        <p class="gameover-overlay__hint">是否继续挑战宝阁？</p>
+        <p class="gameover-overlay__title" id="gameover-title">命数耗尽</p>
+        <p class="gameover-overlay__hint" id="gameover-hint">是否再来一局挑战宝阁？</p>
         <div class="gameover-overlay__actions">
-          <button type="button" class="gameover-btn gameover-btn--continue" id="gameover-continue">继续挑战</button>
+          <button type="button" class="gameover-btn gameover-btn--continue" id="gameover-continue">再来一局</button>
           <button type="button" class="gameover-btn gameover-btn--quit" id="gameover-quit">退出游戏</button>
         </div>
       </div>
@@ -132,44 +144,47 @@
     </div>
 
     <div id="shop" class="shop" hidden>
-      <div class="shop__panel" role="dialog" aria-label="宝阁商店">
-        <header class="shop__head">
-          <div class="shop__gold">
-            <img src="assets/money.png" alt="" draggable="false" />
-            <span id="shop-gold">0</span>
+      <div class="shop__layout">
+        <div class="shop__panel" role="dialog" aria-label="宝阁商店">
+          <header class="shop__head">
+            <h2 class="shop__title">商店</h2>
+            <div class="shop__gold">
+              <img src="assets/money.png" alt="" draggable="false" />
+              <span id="shop-gold">0</span>
+            </div>
+          </header>
+          <div class="shop__slots" id="shop-slots">
+            <button type="button" class="shop-slot" data-item="baojian">
+              <span class="shop-slot__frame">
+                <img src="assets/shop/baojian.png" alt="纯阳剑" draggable="false" />
+              </span>
+              <span class="shop-slot__name">纯阳剑</span>
+              <span class="shop-slot__price"><img src="assets/money.png" alt="" /><b>20</b></span>
+            </button>
+            <button type="button" class="shop-slot" data-item="bajiaoshan">
+              <span class="shop-slot__frame">
+                <img src="assets/shop/bajiaoshan.png" alt="芭蕉扇" draggable="false" />
+              </span>
+              <span class="shop-slot__name">芭蕉扇</span>
+              <span class="shop-slot__price"><img src="assets/money.png" alt="" /><b>20</b></span>
+            </button>
+            <button type="button" class="shop-slot" data-item="fenghuolun">
+              <span class="shop-slot__frame">
+                <img src="assets/shop/fenghuolun.png" alt="风火轮" draggable="false" />
+              </span>
+              <span class="shop-slot__name">风火轮</span>
+              <span class="shop-slot__price"><img src="assets/money.png" alt="" /><b>20</b></span>
+            </button>
           </div>
-        </header>
-        <div class="shop__slots" id="shop-slots">
-          <button type="button" class="shop-slot" data-item="baojian">
-            <span class="shop-slot__frame">
-              <img src="assets/shop/baojian.png" alt="宝剑" draggable="false" />
-            </span>
-            <span class="shop-slot__name">宝剑</span>
-            <span class="shop-slot__price"><img src="assets/money.png" alt="" /><b>20</b></span>
-          </button>
-          <button type="button" class="shop-slot" data-item="bajiaoshan">
-            <span class="shop-slot__frame">
-              <img src="assets/shop/bajiaoshan.png" alt="芭蕉扇" draggable="false" />
-            </span>
-            <span class="shop-slot__name">芭蕉扇</span>
-            <span class="shop-slot__price"><img src="assets/money.png" alt="" /><b>20</b></span>
-          </button>
-          <button type="button" class="shop-slot" data-item="fenghuolun">
-            <span class="shop-slot__frame">
-              <img src="assets/shop/fenghuolun.png" alt="风火轮" draggable="false" />
-            </span>
-            <span class="shop-slot__name">风火轮</span>
-            <span class="shop-slot__price"><img src="assets/money.png" alt="" /><b>20</b></span>
-          </button>
+          <div class="shop__tip" id="shop-tip">
+                <strong id="shop-tip-name">点击商品查看详情</strong>
+                <p id="shop-tip-desc">选中后点购买；备好后点「进入下一关」继续闯关</p>
+          </div>
+          <div class="shop__actions">
+            <button type="button" class="shop__buy" id="shop-buy">购买</button>
+          </div>
         </div>
-        <div class="shop__tip" id="shop-tip">
-              <strong id="shop-tip-name">点击商品查看详情</strong>
-              <p id="shop-tip-desc">选中后点购买；备好后点「进入下一关」继续闯关</p>
-        </div>
-        <div class="shop__actions">
-          <button type="button" class="shop__buy" id="shop-buy">购买</button>
-          <button type="button" class="shop__next" id="shop-next">进入下一关</button>
-        </div>
+        <button type="button" class="shop__next" id="shop-next">进入第 <span class="shop__next-n">2</span> 关</button>
       </div>
     </div>
   </div>
@@ -178,6 +193,12 @@
     <p class="loading-page__text">LOADING...</p>
   </div>
 
-  <script src="combat.js?v=runnerfix1"></script>
+  <script src="sword-config.js?v=combo85"></script>
+  <script src="sword-input.js?v=combo1"></script>
+  <script src="sword-audio.js?v=combo10"></script>
+  <script src="sword-hitstop.js?v=sword2"></script>
+  <script src="sword-camera.js?v=combo14"></script>
+  <script src="sword-combat.js?v=combo77"></script>
+  <script src="combat.js?v=combo51"></script>
 </body>
 </html>

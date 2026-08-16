@@ -36,6 +36,8 @@
   const gameoverOverlay = document.getElementById("gameover-overlay");
   const gameoverContinueBtn = document.getElementById("gameover-continue");
   const gameoverQuitBtn = document.getElementById("gameover-quit");
+  const gameoverTitleEl = document.getElementById("gameover-title");
+  const gameoverHintEl = document.getElementById("gameover-hint");
   const stageTimerEl = document.getElementById("stage-timer");
   const stageLabelEl = document.getElementById("stage-label");
   const stageTimeEl = document.getElementById("stage-time");
@@ -62,6 +64,8 @@
   };
   const COIN_SRC = "assets/money.png";
   const ENEMY_SRC = "assets/tianbing1.png?v=2";
+  const ENEMY_WEAPON_SRC = "assets/wuqi.png";
+  const KNIFE_SRC = "assets/bishou.png";
   const FLOOR_SRC = "assets/main/main_floor1.png";
   const FLOOR_SRC_W = 276;
   const FLOOR_SRC_H = 597;
@@ -77,8 +81,8 @@
   const SURFACE_NUDGE = 20;
   /* 天兵与主角同高站立，不再额外抬高 */
   const ENEMY_Y_NUDGE = 0;
-  const MOVE_SPEED = 9.5;
-  const GRAVITY = 1.7;
+  const MOVE_SPEED = 4.37; /* 原 9.5 减慢 60% 后为 3.8，再加快 15% */
+  const GRAVITY = 0.85; /* 原 1.7，减半 */
   /* 相对初始设定，一段跳高度约为原来的一半 */
   const JUMP_V = 13.5 * Math.SQRT2 * Math.sqrt(GRAVITY / (0.72 * 2));
   const MAX_JUMPS = 2;
@@ -90,6 +94,11 @@
   const START_LIVES = 3;
   const PLAYER_ATK = 20;
   const BOSS_MOVE = 2.1;
+  const BOSS_CHASE = 2.85;
+  const BOSS_AGGRO_X = 560;
+  const BOSS_AGGRO_Y = 240;
+  /** 追到该水平距离内停下，贴近用武器戳 */
+  const BOSS_ATTACK_GAP = 78;
   const BOSS_HURT_FRAMES = 18;
   /** 各关普通怪：血量 / 攻击 / 本关刷新总数 */
   const STAGE_MOB = {
@@ -106,7 +115,7 @@
   };
   const ATTACK_FRAMES = 26;
   const HURT_IFRAMES = 45;
-  const ATTACK_REACH = 96 * 3;
+  const ATTACK_REACH = 96 * 1.5; /* 原 96*3，缩小一倍 */
   const SWORD_CD_MS = 500; /* 已废弃：宝剑不再自动冷却攻击 */
   const FAN_CD_MS = 1000; /* 已废弃：扇子不再自动冷却攻击 */
   const SHOP_PRICE = 20;
@@ -139,9 +148,10 @@
       },
     },
   };
-  /* 扇形攻击角度（相对水平向右，y 轴向上），单位度 */
-  const ARC_ANGLE_MIN = -28;
-  const ARC_ANGLE_MAX = 62;
+  /* 攻击扇区（相对水平向前，y 轴向上），单位度 */
+  const KNIFE_ARC = { min: -22, max: 22 }; /* 吕洞宾：前刺窄扇区 */
+  const THRUST_FRAMES = 12; /* ≈0.2s，与天兵前刺一致 */
+  const FAN_VERT_ARC = { min: 18, max: 112 }; /* 钟离权：纵向弧 */
   const MIN_GAP_SPACING = 420;
   const MIN_BOSS_SPACING = 1400;
   const MIN_COIN_GAP = 110;
@@ -241,6 +251,8 @@
   const shopBought = { baojian: 0, bajiaoshan: 0, fenghuolun: 0 };
   let coinImgUrl = COIN_SRC;
   let enemyImgUrl = ENEMY_SRC;
+  let enemyWeaponUrl = ENEMY_WEAPON_SRC;
+  let knifeImgUrl = KNIFE_SRC;
   let floorImgUrl = FLOOR_SRC;
   /* 顶部透明区对应的显示像素，用于脚底对齐实体顶面 */
   let floorTopPad = 0;
@@ -538,6 +550,24 @@
   async function prepareEnemyArt() {
     /* 天兵已是透明底 PNG，不再抠图 */
     enemyImgUrl = ENEMY_SRC;
+    try {
+      const img = await loadImage(ENEMY_WEAPON_SRC);
+      const small = downsampleImage(img, 280);
+      const punched = punchSpriteBg(small, 248);
+      enemyWeaponUrl = punched.toDataURL("image/png");
+    } catch (_) {
+      enemyWeaponUrl = ENEMY_WEAPON_SRC;
+    }
+  }
+
+  async function prepareKnifeArt() {
+    try {
+      const img = await loadImage(KNIFE_SRC);
+      const small = downsampleImage(img, 280);
+      knifeImgUrl = punchSpriteBg(small, 248).toDataURL("image/png");
+    } catch (_) {
+      knifeImgUrl = KNIFE_SRC;
+    }
   }
 
   async function prepareFloorArt() {
@@ -636,6 +666,38 @@
     playTone({ freq: 1100, dur: 0.11, type: "sawtooth", vol: 0.028, slide: 160 });
   }
 
+  /** 天兵武器划破风声（略短，便于 0.2s 连刺） */
+  function sfxEnemySlash() {
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const dur = 0.14;
+    const t0 = ctx.currentTime;
+    const n = Math.max(1, (ctx.sampleRate * dur) | 0);
+    const buffer = ctx.createBuffer(1, n, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < n; i++) {
+      const env = 1 - i / n;
+      data[i] = (Math.random() * 2 - 1) * env * env;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.Q.value = 0.85;
+    filter.frequency.setValueAtTime(2600, t0);
+    filter.frequency.exponentialRampToValueAtTime(380, t0 + dur);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.12, t0 + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    src.start(t0);
+    src.stop(t0 + dur + 0.02);
+    playTone({ freq: 980, dur: 0.08, type: "sawtooth", vol: 0.022, slide: 180 });
+  }
+
   function sfxHit() {
     playTone({ freq: 180, dur: 0.08, type: "square", vol: 0.07, slide: 90 });
   }
@@ -658,13 +720,15 @@
     portrait.addEventListener("animationend", clear, { once: true });
   }
 
-  function pointInAttackArc(ox, oy, px, py, facing, reach) {
+  function pointInAttackArc(ox, oy, px, py, facing, reach, arc) {
     const dx = (px - ox) * (facing < 0 ? -1 : 1);
     const dy = py - oy;
     const dist = Math.hypot(dx, dy);
-    if (dist > reach || dist < 12) return false;
+    if (dist > reach || dist < 10) return false;
     const deg = (Math.atan2(dy, dx) * 180) / Math.PI;
-    return deg >= ARC_ANGLE_MIN && deg <= ARC_ANGLE_MAX;
+    const min = arc && arc.min != null ? arc.min : KNIFE_ARC.min;
+    const max = arc && arc.max != null ? arc.max : KNIFE_ARC.max;
+    return deg >= min && deg <= max;
   }
 
   function swordReach() {
@@ -682,14 +746,14 @@
     };
   }
 
-  function enemiesInArc(ox, oy, facing, reach) {
+  function enemiesInArc(ox, oy, facing, reach, arc) {
     const hits = [];
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
       if (e.dead) continue;
       const eCx = e.x;
       const eCy = e.y + e.h * 0.42;
-      if (pointInAttackArc(ox, oy, eCx, eCy, facing, reach)) hits.push(e);
+      if (pointInAttackArc(ox, oy, eCx, eCy, facing, reach, arc)) hits.push(e);
     }
     return hits;
   }
@@ -733,8 +797,8 @@
   }
 
   function syncPartyHud() {
-    // 选人页：红蓝头像+血条都显示；点开始进入后只留出战角色
-    const single = started || running || game.classList.contains("is-running");
+    // 选人/加载中：红蓝头像+血条都显示；真正进入关卡页后才只留出战角色（命数同时出现）
+    const single = running || game.classList.contains("is-running");
     document.querySelectorAll(".party .member").forEach((member) => {
       if (!single) {
         member.hidden = false;
@@ -746,21 +810,34 @@
     renderLives();
   }
 
-  function openGameOver() {
+  function openGameOver(reason = "lives") {
     gameOver = true;
     paused = true;
     hero.dead = true;
     hero.vx = 0;
     hero.vy = 0;
+    stageBusy = true;
     if (toast) {
       toast.hidden = true;
       toast.classList.remove("is-show");
     }
     if (pauseOverlay) pauseOverlay.hidden = true;
     if (shopEl) shopEl.hidden = true;
+    inShop = false;
+    game.classList.remove("is-shop");
     runway.classList.add("is-paused");
     if (bagBtn) bagBtn.hidden = true;
     setBagOpen(false);
+    if (gameoverTitleEl) {
+      gameoverTitleEl.textContent = reason === "timeout" ? "时间到" : "命数耗尽";
+    }
+    if (gameoverHintEl) {
+      gameoverHintEl.textContent =
+        reason === "timeout"
+          ? "未能在通关时间内消灭全部天兵"
+          : "是否再来一局挑战宝阁？";
+    }
+    if (gameoverContinueBtn) gameoverContinueBtn.textContent = "再来一局";
     if (gameoverOverlay) {
       gameoverOverlay.hidden = false;
       gameoverOverlay.removeAttribute("hidden");
@@ -770,22 +847,36 @@
     renderLives();
   }
 
+  /** 再来一局：从第 1 关重新开始 */
   function continueChallenge() {
     if (!gameOver) return;
     gameOver = false;
     if (gameoverOverlay) gameoverOverlay.hidden = true;
     game.classList.remove("is-gameover");
     if (bagBtn) bagBtn.hidden = false;
+    inShop = false;
+    stageBusy = false;
+    if (shopEl) shopEl.hidden = true;
+    game.classList.remove("is-shop");
     heroLives = START_LIVES;
     hero.hp = MAX_HP;
     hero.dead = false;
+    hero.hurtFrames = 0;
+    resetRunBuffs();
+    grantStartingLoadout();
+    coinCount = 0;
+    drawCoinCount(formatCoins(0));
     renderHp();
     renderLives();
-    resetHeroOnTrack();
+    initTrack();
+    running = true;
     setPaused(false);
-    showToast("继续挑战！", 1000);
+    syncHeroEl();
+    syncPartyHud();
+    showToast("再来一局 · 第 1 关", 1100);
   }
 
+  /** 退出游戏：回到初始选人页 */
   function quitGame() {
     window.location.reload();
   }
@@ -862,25 +953,34 @@
   }
 
   function syncWeaponVisual() {
-    const swords = itemVisualCount("baojian");
-    const fans = itemVisualCount("bajiaoshan");
+    /* 吕洞宾持刀、钟离权持扇（角色自带外观，不计商店持有） */
+    const swords = Math.max(itemVisualCount("baojian"), selected === "blue" ? 1 : 0);
+    const fans = Math.max(itemVisualCount("bajiaoshan"), selected === "red" ? 1 : 0);
     runner.classList.toggle("has-sword", swords > 0);
     runner.classList.toggle("has-fan", fans > 0);
-    runner.classList.toggle("has-melee", hasMeleeVisual());
+    runner.classList.toggle("has-melee", swords > 0 || fans > 0);
+    runner.classList.toggle("is-knife-hero", selected === "blue");
+    runner.classList.toggle("is-fan-hero", selected === "red");
     if (!weaponRack) return;
     weaponRack.hidden = swords + fans <= 0;
     weaponRack.innerHTML = "";
-    appendStackedWeapon("sword", swords, "assets/shop/baojian.png", 0);
-    appendStackedWeapon("fan", fans, "assets/shop/bajiaoshan.png", swords * 0.02);
+    appendStackedWeapon(
+      "sword",
+      swords,
+      selected === "blue" ? knifeImgUrl : "assets/shop/baojian.png",
+      0
+    );
+    /* 钟离权默认手持 shanzi.png */
+    appendStackedWeapon(
+      "fan",
+      fans,
+      selected === "red" ? "assets/shanzi.png" : "assets/shop/bajiaoshan.png",
+      swords * 0.02
+    );
   }
 
-  /** 青衫开局自带 1 把宝剑 */
+  /** 开局按角色显示默认兵器外观（不计入商店已购） */
   function grantStartingLoadout() {
-    if (selected === "blue") {
-      const n = 1;
-      shopBought.baojian = n;
-      buffs.atk += 2 * n;
-    }
     syncWeaponVisual();
   }
 
@@ -1163,20 +1263,33 @@
   }
 
   function updateStageSystem() {
-    if (!running || paused || hero.dead || stageBusy || inShop) return;
+    if (!running || paused || hero.dead || stageBusy || inShop || gameOver) return;
     const now = performance.now();
     if (!stageClock) stageClock = now;
     const dt = Math.min(0.05, (now - stageClock) / 1000);
     stageClock = now;
     stageTimeLeft -= dt;
 
+    const cleared =
+      stageEnemyTotal > 0 &&
+      stageSpawned >= stageEnemyTotal &&
+      livingEnemyCount() === 0;
+
+    if (cleared) {
+      stageBusy = true;
+      updateStageHud();
+      showToast("清敌成功 · 进入宝阁商店", 1100);
+      setTimeout(() => openShop(stage + 1), 700);
+      return;
+    }
+
     if (stageTimeLeft <= 0) {
       stageTimeLeft = 0;
       updateStageHud();
       stageBusy = true;
       clearEnemies();
-      showToast("本关结束 · 进入宝阁商店", 1100);
-      setTimeout(() => openShop(stage + 1), 700);
+      showToast("时间到 · 闯关失败", 1100);
+      setTimeout(() => openGameOver("timeout"), 700);
       return;
     }
 
@@ -1295,6 +1408,52 @@
       boss._hurt = hurt;
       boss.el.classList.toggle("is-hurt", hurt);
     }
+    const air = !boss.onGround;
+    if (boss._air !== air) {
+      boss._air = air;
+      boss.el.classList.toggle("is-air", air);
+    }
+  }
+
+  function tryBossJump(boss) {
+    if (boss.dead || boss.jumpsLeft <= 0) return false;
+    boss.vy = JUMP_V;
+    boss.jumpsLeft -= 1;
+    boss.onGround = false;
+    return true;
+  }
+
+  /** 前方是否空洞（含脚边） */
+  function bossGapDist(e, facing) {
+    const half = e.w * 0.28;
+    for (let d = 2; d <= 64; d += 2) {
+      if (surfaceAt(e.x + facing * (half * 0.35 + d)) == null) return d;
+    }
+    return 0;
+  }
+
+  /** 两点之间水平路径上是否有空洞 */
+  function pathHasGapBetween(x0, x1) {
+    const dir = x1 >= x0 ? 1 : -1;
+    const span = Math.abs(x1 - x0);
+    for (let d = 4; d <= span; d += 6) {
+      if (surfaceAt(x0 + dir * d) == null) return true;
+    }
+    return false;
+  }
+
+  /** 碰到 gap：立刻掉头并退回实心地面，锁定朝向（优先于追击主角） */
+  function turnBossFromGap(e, useChase) {
+    e.facing *= -1;
+    for (let i = 0; i < 12; i++) {
+      const nx = e.x + e.facing * 8;
+      if (surfaceAt(nx) == null) break;
+      e.x = nx;
+    }
+    e.targetX = e.x + e.facing * 220;
+    e.vx = e.facing * (useChase ? BOSS_CHASE : BOSS_MOVE);
+    e.gapLock = 70;
+    e.think = 50;
   }
 
   function pickBossTargetX(boss) {
@@ -1324,13 +1483,29 @@
     img.src = enemyImgUrl;
     img.alt = "天兵";
     img.draggable = false;
+    const weapon = document.createElement("img");
+    weapon.className = "enemy-weapon";
+    weapon.src = enemyWeaponUrl;
+    weapon.alt = "";
+    weapon.draggable = false;
+    const arc = document.createElement("div");
+    arc.className = "enemy-weapon-arc";
+    arc.setAttribute("aria-hidden", "true");
+    const hold = document.createElement("div");
+    hold.className = "enemy-weapon-hold";
+    hold.appendChild(weapon);
+    hold.appendChild(arc);
+    const body = document.createElement("div");
+    body.className = "enemy__body";
+    body.appendChild(img);
+    body.appendChild(hold);
     const hpBar = document.createElement("div");
     hpBar.className = "boss-hp";
     if (stage >= 5) hpBar.classList.add("is-thicker");
     else if (stage >= 3) hpBar.classList.add("is-thick");
     hpBar.innerHTML = "<i></i>";
     wrap.appendChild(hpBar);
-    wrap.appendChild(img);
+    wrap.appendChild(body);
     trackWorld.appendChild(wrap);
     const boss = {
       x,
@@ -1341,6 +1516,10 @@
       w: 135,
       h: 229,
       el: wrap,
+      weaponEl: weapon,
+      weaponHoldEl: hold,
+      arcEl: arc,
+      thrustAt: 0,
       hpBar: hpBar.querySelector("i"),
       dead: false,
       hp: maxHp,
@@ -1350,10 +1529,13 @@
       think: 20 + ((Math.random() * 40) | 0),
       targetX: x,
       onGround: true,
+      jumpsLeft: MAX_JUMPS,
+      gapLock: 0,
       _sx: (x + 0.5) | 0,
       _sy: (y + 0.5) | 0,
       _faceLeft: null,
       _hurt: null,
+      _air: null,
     };
     enemies.push(boss);
     lastBossAt = x;
@@ -1508,10 +1690,11 @@
       if (prevY < top - MAX_WALK_STEP && nextY < top - MAX_WALK_STEP) continue;
 
       const stayOn = Math.abs(prevY - top) <= 6 && nextY <= top + 16;
+      /* 下落落到台面即可（含跳高台）；步行上台仍由 resolveLedgeWalls 挡住 */
       const crossed =
         prevY >= top - LAND_TOL &&
         nextY <= top + 16 &&
-        prevY >= top - MAX_WALK_STEP;
+        prevY >= nextY;
       if (!stayOn && !crossed) continue;
 
       const dist = Math.abs(top - prevY);
@@ -1569,12 +1752,11 @@
   }
 
   function updateParallax() {
-    const viewW = viewWidth();
-    const shift = viewW * 0.16;
-
-    const place = (el, depthX, depthY) => {
+    /* 背景水平移动距离 = 人物/镜头世界位移的一半；远中近略做层次差 */
+    const cam = runScroll.world;
+    const place = (el, rate, depthY) => {
       if (!el) return;
-      const x = ((-viewFx.x * shift * depthX) * 2 + 0.5) | 0;
+      const x = ((-cam * rate) + 0.5) | 0;
       const y = ((-viewFx.y * depthY) * 2 + 0.5) | 0;
       if (el._px === x && el._py === y) return;
       el._px = x;
@@ -1582,9 +1764,9 @@
       el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
     };
 
-    place(runBackArt, 0.22, 0.18);
-    place(runMidArt, 0.62, 0.45);
-    place(runFrontArt, 1.08, 0.82);
+    place(runBackArt, 0.21, 0.18);
+    place(runMidArt, 0.25, 0.45);
+    place(runFrontArt, 0.29, 0.82);
   }
 
   function updateCamera() {
@@ -1634,6 +1816,7 @@
       "is-attacking",
       "is-attacking-sword",
       "is-attacking-fan",
+      "is-thrusting",
       "is-hurt",
       "is-moving"
     );
@@ -1676,18 +1859,23 @@
   function playWeaponAnim(kind) {
     const cls = kind === "fan" ? "is-attacking-fan" : "is-attacking-sword";
     if (kind === "fan") hero.fanAnimFrames = ATTACK_FRAMES;
-    else hero.swordAnimFrames = ATTACK_FRAMES;
-    runner.classList.remove(cls);
+    else hero.swordAnimFrames = kind === "thrust" ? THRUST_FRAMES : ATTACK_FRAMES;
+    runner.classList.remove(cls, "is-thrusting");
     void runner.offsetWidth;
     runner.classList.add("is-attacking", cls);
-    if (kind === "sword") sfxWhoosh();
+    if (kind === "thrust") {
+      runner.classList.add("is-thrusting");
+      sfxEnemySlash();
+    } else if (kind === "sword") sfxWhoosh();
     else sfxAttack();
   }
 
   function tickWeaponAnims() {
     if (hero.swordAnimFrames > 0) {
       hero.swordAnimFrames -= 1;
-      if (hero.swordAnimFrames <= 0) runner.classList.remove("is-attacking-sword");
+      if (hero.swordAnimFrames <= 0) {
+        runner.classList.remove("is-attacking-sword", "is-thrusting");
+      }
     }
     if (hero.fanAnimFrames > 0) {
       hero.fanAnimFrames -= 1;
@@ -1698,39 +1886,25 @@
     }
   }
 
-  /** 点击手动攻击：宝剑单体 + 芭蕉扇范围，均不自动 */
+  /** 点击攻击：吕洞宾前刺；钟离权扇子纵向弧 */
   function tryPlayerAttack() {
     if (!running || paused || hero.dead || inShop) return false;
-    if (!hasMeleeVisual()) return false;
     if (hero.swordAnimFrames > 0 || hero.fanAnimFrames > 0) return false;
 
     const heroW = runner.offsetWidth || 90;
-    let did = false;
 
-    if (hasSword()) {
-      const swordOx = hero.x;
-      const swordOy = hero.y + 46;
-      const hitsL = enemiesInArc(swordOx, swordOy, -1, swordReach());
-      const hitsR = enemiesInArc(swordOx, swordOy, 1, swordReach());
-      const hits = hitsL.concat(hitsR.filter((e) => !hitsL.includes(e)));
-      const target = nearestEnemy(hits, swordOx, swordOy);
-      if (target) {
-        hero.facing = target.x < hero.x ? -1 : 1;
-        hurtBoss(target, playerAtk());
-      }
-      playWeaponAnim("sword");
-      did = true;
+    if (selected === "blue") {
+      /* 匕首前刺：动画期间匕首碰到天兵才结算伤害 */
+      playWeaponAnim("thrust");
+      return true;
     }
 
-    if (hasFan()) {
-      const { ox, oy } = attackOrigin(heroW);
-      const hits = enemiesInArc(ox, oy, hero.facing, fanReach());
-      for (let i = 0; i < hits.length; i++) hurtBoss(hits[i], playerAtk());
-      playWeaponAnim("fan");
-      did = true;
-    }
-
-    return did;
+    /* 钟离权：扇子纵向弧，面向范围打击 */
+    const { ox, oy } = attackOrigin(heroW);
+    const hits = enemiesInArc(ox, oy, hero.facing, fanReach(), FAN_VERT_ARC);
+    for (let i = 0; i < hits.length; i++) hurtBoss(hits[i], playerAtk());
+    playWeaponAnim("fan");
+    return true;
   }
 
   function loseLifeAndRespawn(delay = 450) {
@@ -1742,7 +1916,7 @@
     sfxLifeLost();
     if (heroLives <= 0) {
       /* 立刻弹出全屏结算页，不用底部 toast */
-      openGameOver();
+      openGameOver("lives");
       return;
     }
     showToast(`剩余命数 x${heroLives}`, 900);
@@ -1830,21 +2004,67 @@
       const e = enemies[i];
       if (e.dead) continue;
 
+      const dxHero = hero.x - e.x;
+      const dyHero = hero.y - e.y;
+      const distX = Math.abs(dxHero);
+      const aggro =
+        !hero.dead &&
+        running &&
+        !paused &&
+        !inShop &&
+        distX < BOSS_AGGRO_X &&
+        Math.abs(dyHero) < BOSS_AGGRO_Y;
+
+      if (e.gapLock > 0) e.gapLock -= 1;
+
+      const chaseDir = dxHero < 0 ? -1 : 1;
+      const gapAheadFace = e.onGround ? bossGapDist(e, e.facing) : 0;
+      const gapTowardHero =
+        e.onGround && aggro ? bossGapDist(e, chaseDir) : 0;
+      const heroAcrossGap =
+        aggro && pathHasGapBetween(e.x, hero.x);
+
       if (e.hurtFrames > 0) {
         e.hurtFrames -= 1;
         e.vx *= 0.86;
+      } else if (e.gapLock > 0) {
+        /* 已因 gap 掉头：持续回撤，追击指令让路 */
+        e.vx = e.facing * BOSS_CHASE;
+        e.targetX = e.x + e.facing * 220;
+      } else if (
+        e.onGround &&
+        ((gapAheadFace > 0 && gapAheadFace <= 56) ||
+          (gapTowardHero > 0 && gapTowardHero <= 72) ||
+          heroAcrossGap)
+      ) {
+        /* 最高优先：前方/追击方向有洞 → 掉头，不靠近主角 */
+        if (gapAheadFace > 0 && gapAheadFace <= 56) {
+          turnBossFromGap(e, true);
+        } else if (e.facing === chaseDir) {
+          turnBossFromGap(e, true);
+        } else {
+          e.vx = e.facing * BOSS_CHASE;
+          e.targetX = e.x + e.facing * 220;
+          e.gapLock = Math.max(e.gapLock, 40);
+        }
+      } else if (aggro) {
+        e.facing = chaseDir;
+        e.think = 6;
+        const needClimb = hero.y > e.y + 8;
+        if (distX > BOSS_ATTACK_GAP || needClimb) {
+          e.targetX = hero.x;
+          e.vx = e.facing * BOSS_CHASE;
+        } else {
+          e.targetX = e.x;
+          e.vx = 0;
+        }
       } else {
         e.think -= 1;
         if (e.think <= 0) {
           const roll = Math.random();
-          if (roll < 0.22) {
+          if (roll < 0.28) {
             e.vx = 0;
             e.think = 25 + ((Math.random() * 35) | 0);
-          } else if (roll < 0.34 && e.onGround) {
-            e.vy = JUMP_V * 0.72;
-            e.onGround = false;
-            e.targetX = pickBossTargetX(e);
-            e.think = 40 + ((Math.random() * 30) | 0);
           } else {
             e.targetX = pickBossTargetX(e);
             e.think = 45 + ((Math.random() * 55) | 0);
@@ -1859,20 +2079,51 @@
         }
       }
 
-      applyActorPhysics(e, e.w * 0.28, ENEMY_Y_NUDGE);
-
-      /* 走到台沿外：掉头；更高台阶：跳上去 */
-      if (e.onGround) {
-        const ahead = e.x + e.facing * 28;
+      /* 前方更高台阶：跳上去（gap 已在上方优先处理） */
+      if (e.onGround && e.hurtFrames <= 0 && e.gapLock <= 0) {
         const here = surfaceAt(e.x);
-        const next = surfaceAt(ahead);
-        if (next == null) {
-          e.facing *= -1;
-          e.targetX = pickBossTargetX(e);
-          e.vx = e.facing * BOSS_MOVE;
-        } else if (here != null && next > here + MAX_WALK_STEP) {
-          e.vy = JUMP_V * 0.85;
-          e.onGround = false;
+        let rise = 0;
+        if (here != null && bossGapDist(e, e.facing) <= 0) {
+          for (let d = 6; d <= 72; d += 6) {
+            const next = surfaceAt(e.x + e.facing * d);
+            if (next == null) break;
+            if (next > here + MAX_WALK_STEP) rise = Math.max(rise, next - here);
+          }
+          for (let i = 0; i < platforms.length; i++) {
+            const p = platforms[i];
+            if (p.h <= here + MAX_WALK_STEP) continue;
+            if (e.facing > 0) {
+              const edge = p.x;
+              if (edge >= e.x - 2 && edge <= e.x + 76) {
+                rise = Math.max(rise, p.h - here);
+              }
+            } else {
+              const edge = p.x + p.w;
+              if (edge <= e.x + 2 && edge >= e.x - 76) {
+                rise = Math.max(rise, p.h - here);
+              }
+            }
+          }
+          if (rise > 0) {
+            tryBossJump(e);
+            if (Math.abs(e.vx) < 0.4) e.vx = e.facing * BOSS_MOVE;
+          }
+        }
+      }
+
+      applyActorPhysics(e, e.w * 0.28, ENEMY_Y_NUDGE);
+      if (e.onGround) e.jumpsLeft = MAX_JUMPS;
+
+      /* 贴地撞上更高立面 → 跳；脚前空洞 → gap 优先掉头 */
+      if (e.onGround && e.hurtFrames <= 0) {
+        const here = surfaceAt(e.x);
+        const nose = e.x + e.facing * (e.w * 0.3 + 4);
+        const next = surfaceAt(nose);
+        if (here != null && next != null && next > here + MAX_WALK_STEP) {
+          tryBossJump(e);
+          e.vx = e.facing * BOSS_CHASE;
+        } else if (here != null && (next == null || bossGapDist(e, e.facing) > 0)) {
+          turnBossFromGap(e, true);
         }
       }
 
@@ -1889,6 +2140,83 @@
     }
   }
 
+  const ENEMY_THRUST_MS = 200;
+
+  function weaponOverlapsHero(enemy) {
+    const weapon = enemy.weaponEl;
+    if (!weapon || !runner) return false;
+    const wr = weapon.getBoundingClientRect();
+    const hr = runner.getBoundingClientRect();
+    if (wr.width < 1 || wr.height < 1) return false;
+    return (
+      wr.right > hr.left &&
+      wr.left < hr.right &&
+      wr.bottom > hr.top &&
+      wr.top < hr.bottom
+    );
+  }
+
+  function weaponTipHitsHero(enemy) {
+    const weapon = enemy.weaponEl;
+    if (!weapon || !runner) return false;
+    const wr = weapon.getBoundingClientRect();
+    const hr = runner.getBoundingClientRect();
+    if (wr.width < 1 || wr.height < 1) return false;
+    const tip = 5;
+    /* 武器本地再镜像后：朝右枪尖在右缘，朝左（身体镜像）枪尖在左缘 */
+    let tipLeft;
+    let tipRight;
+    if (enemy.facing < 0) {
+      tipLeft = wr.left;
+      tipRight = wr.left + tip;
+    } else {
+      tipLeft = wr.right - tip;
+      tipRight = wr.right;
+    }
+    return (
+      tipRight > hr.left &&
+      tipLeft < hr.right &&
+      wr.bottom > hr.top &&
+      wr.top < hr.bottom
+    );
+  }
+
+  function playEnemyThrust(enemy) {
+    const hold = enemy.weaponHoldEl;
+    if (!hold) return;
+    enemy.el.classList.remove("is-thrusting");
+    hold.classList.remove("is-thrusting");
+    void hold.offsetWidth;
+    enemy.el.classList.add("is-thrusting");
+    hold.classList.add("is-thrusting");
+    sfxEnemySlash();
+    if (enemy._thrustClear) clearTimeout(enemy._thrustClear);
+    enemy._thrustClear = setTimeout(() => {
+      enemy.el.classList.remove("is-thrusting");
+      hold.classList.remove("is-thrusting");
+      enemy._thrustClear = 0;
+    }, ENEMY_THRUST_MS);
+  }
+
+  function knifeTouchesEnemy(enemy) {
+    if (selected !== "blue" || !weaponRack || !enemy?.el) return false;
+    /* 仅前刺动作中结算 */
+    if (hero.swordAnimFrames <= 0 || !runner.classList.contains("is-thrusting")) {
+      return false;
+    }
+    const knife = weaponRack.querySelector(".weapon-sprite--sword");
+    if (!knife) return false;
+    const kr = knife.getBoundingClientRect();
+    const er = enemy.el.getBoundingClientRect();
+    if (kr.width < 1 || kr.height < 1 || er.width < 1) return false;
+    return (
+      kr.right > er.left &&
+      kr.left < er.right &&
+      kr.bottom > er.top &&
+      kr.top < er.bottom
+    );
+  }
+
   function updateCombat(heroW) {
     tickWeaponAnims();
     if (hero.hurtFrames > 0) {
@@ -1898,27 +2226,20 @@
 
     tryAutoAttacks(heroW);
 
-    const feetCenter = hero.x;
-    const heroLeft = feetCenter - heroW * 0.28;
-    const heroRight = feetCenter + heroW * 0.32;
-    const heroBottom = hero.y;
-    const heroTop = hero.y + 78;
-
+    const now = performance.now();
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
       if (e.dead) continue;
-      const eLeft = e.x - e.w * 0.45;
-      const eRight = e.x + e.w * 0.45;
-      const eBottom = e.y;
-      const eTop = e.y + e.h;
-
-      const vertOk = heroBottom < eTop - 8 && heroTop > eBottom + 8;
-      const bodyHit =
-        vertOk &&
-        eRight > heroLeft &&
-        eLeft < heroRight &&
-        Math.abs((eBottom + eTop) / 2 - (heroBottom + heroTop) / 2) < 70;
-      if (bodyHit) takeDamage(e.atk || bossAtkForStage(stage));
+      /* 吕洞宾：本次前刺中匕首碰到天兵才掉血 */
+      if (knifeTouchesEnemy(e) && e.hurtFrames <= 0) {
+        hurtBoss(e, playerAtk());
+      }
+      if (!weaponOverlapsHero(e)) continue;
+      if (!e.thrustAt || now - e.thrustAt >= ENEMY_THRUST_MS) {
+        e.thrustAt = now;
+        playEnemyThrust(e);
+      }
+      if (weaponTipHitsHero(e)) takeDamage(e.atk || bossAtkForStage(stage));
     }
   }
 
@@ -2034,7 +2355,6 @@
     gameOver = false;
     if (gameoverOverlay) gameoverOverlay.hidden = true;
     game.classList.remove("is-gameover");
-    syncPartyHud();
 
     /* 先露出跑道，避免资源处理失败时整关空白 */
     if (runway) {
@@ -2043,6 +2363,7 @@
     }
     game.classList.add("is-running");
     if (runner) runner.classList.add("is-fighting");
+    syncPartyHud();
 
     try {
       await setRunnerSprite(selected);
@@ -2052,6 +2373,7 @@
     await Promise.allSettled([
       prepareCoinArt(),
       prepareEnemyArt(),
+      prepareKnifeArt(),
       prepareFloorArt(),
     ]);
 
@@ -2060,12 +2382,12 @@
     setPaused(false);
     syncHeroEl();
     if (loadingPage && !loadingPage.hidden) await hideLoadingPage();
+    syncPartyHud();
   }
 
   async function startGame() {
     if (started) return;
     started = true;
-    syncPartyHud();
     const name = selected === "red" ? "钟离权" : "吕洞宾";
     startBtn.querySelector(".start-btn__label").textContent = "潜入中…";
     startBtn.disabled = true;

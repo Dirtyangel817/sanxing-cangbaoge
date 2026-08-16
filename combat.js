@@ -26,6 +26,10 @@
   const runway = document.getElementById("runway");
   const runner = document.getElementById("runner");
   const runnerSprite = document.getElementById("runner-sprite");
+  const comboStage = document.getElementById("combo-stage");
+  const playerFootLeft = document.getElementById("player-foot-left");
+  const playerFootRight = document.getElementById("player-foot-right");
+  const playerFeetEl = document.getElementById("player-feet");
   const swordRack = document.getElementById("weapon-rack");
   const weaponRack = swordRack;
   const runBack = document.getElementById("run-back");
@@ -36,6 +40,8 @@
   const gameoverOverlay = document.getElementById("gameover-overlay");
   const gameoverContinueBtn = document.getElementById("gameover-continue");
   const gameoverQuitBtn = document.getElementById("gameover-quit");
+  const gameoverTitleEl = document.getElementById("gameover-title");
+  const gameoverHintEl = document.getElementById("gameover-hint");
   const stageTimerEl = document.getElementById("stage-timer");
   const stageLabelEl = document.getElementById("stage-label");
   const stageTimeEl = document.getElementById("stage-time");
@@ -43,6 +49,7 @@
   const shopGoldEl = document.getElementById("shop-gold");
   const shopNextBtn = document.getElementById("shop-next");
   const shopBuyBtn = document.getElementById("shop-buy");
+  const shopTipEl = document.getElementById("shop-tip");
   const shopTipName = document.getElementById("shop-tip-name");
   const shopTipDesc = document.getElementById("shop-tip-desc");
   const shopSlots = [...document.querySelectorAll(".shop-slot")];
@@ -58,10 +65,33 @@
 
   const HERO_SRC = {
     red: "assets/little-red.png",
-    blue: "assets/little-blue.png",
+    blue: "assets/gedoudongzuo/08.gif",
   };
+  /** 吕洞宾全身攻击帧（剑+弧光已画进图）；待机已改用连招 GIF，不再用旧身体/脚 */
+  const BLUE_BODY_ATK = {
+    idle: "assets/gedoudongzuo/08.gif",
+    2: "assets/renwudongzuo/2.png",
+    3: "assets/renwudongzuo/3.png",
+    4: "assets/renwudongzuo/4.png",
+    5: "assets/renwudongzuo/5.png",
+    6: "assets/renwudongzuo/6.png",
+  };
+  const PLAYER_FOOT_SRC = {
+    left: "assets/left foot.png",
+    right: "assets/rightfoot.png",
+    /** 停止时默认站姿参考（左右脚 local 归零对齐此图） */
+    middle: "assets/middlefoot.png",
+  };
+  const FOOT_STEP_MS = 120; /* 每步 0.10–0.13s */
+  const FOOT_FWD_PX = 6; /* 前脚幅度 */
+  const FOOT_BACK_PX = 3; /* 后脚幅度 */
   const COIN_SRC = "assets/money.png";
   const ENEMY_SRC = "assets/tianbing1.png?v=2";
+  const ENEMY_FLASH_SRC = encodeURI("assets/tianbing baishan.png");
+  const enemyFlashPreload = new Image();
+  enemyFlashPreload.src = ENEMY_FLASH_SRC;
+  const ENEMY_WEAPON_SRC = "assets/wuqi.png";
+  const KNIFE_SRC = "assets/bishou.png";
   const FLOOR_SRC = "assets/main/main_floor1.png";
   const FLOOR_SRC_W = 276;
   const FLOOR_SRC_H = 597;
@@ -77,8 +107,10 @@
   const SURFACE_NUDGE = 20;
   /* 天兵与主角同高站立，不再额外抬高 */
   const ENEMY_Y_NUDGE = 0;
-  const MOVE_SPEED = 9.5;
-  const GRAVITY = 1.7;
+  const MOVE_SPEED = 4.37; /* 原 9.5 减慢 60% 后为 3.8，再加快 15% */
+  const TAP_DASH_MS = 300;
+  const TAP_DASH_MUL = 1.2;
+  const GRAVITY = 0.85; /* 原 1.7，减半 */
   /* 相对初始设定，一段跳高度约为原来的一半 */
   const JUMP_V = 13.5 * Math.SQRT2 * Math.sqrt(GRAVITY / (0.72 * 2));
   const MAX_JUMPS = 2;
@@ -86,36 +118,202 @@
   const MAX_WALK_STEP = 3;
   const GAP_SAFE_RATIO = 0.75;
   const FORCE_ZERO_GAP = false;
+  /* 临时：全场同一高度，只留一个洞 */
+  const FLAT_ARENA = true;
   const MAX_HP = 100;
   const START_LIVES = 3;
   const PLAYER_ATK = 20;
-  const BOSS_MOVE = 2.1;
-  const BOSS_HURT_FRAMES = 18;
+  const BOSS_MOVE = 1.05;
+  const BOSS_CHASE = 1.425;
+  const BOSS_AGGRO_X = 560;
+  const BOSS_AGGRO_Y = 240;
+  /** 追到该水平距离内停下，贴近用武器戳 */
+  const BOSS_ATTACK_GAP = 78;
+  const BOSS_HURT_FRAMES = 36;
+  const BOSS_JUMP_COOLDOWN = 70;
   /** 各关普通怪：血量 / 攻击 / 本关刷新总数 */
+  /* 一套完整连招 15+20+22+28（均暴击）刚好打空 */
+  const COMBO_KILL_HP = Math.floor(
+    PLAYER_ATK * (1.1 * 1.5 + 1.25 * 1.55 + 1.45 * 1.6 + 1.9 * 1.7)
+  );
   const STAGE_MOB = {
-    1: { hp: 30, atk: 5, count: 6 },
-    2: { hp: 36, atk: 6, count: 8 },
-    3: { hp: 42, atk: 7, count: 10 },
-    4: { hp: 50, atk: 8, count: 12 },
-    5: { hp: 60, atk: 9, count: 14 },
-    6: { hp: 70, atk: 10, count: 16 },
-    7: { hp: 82, atk: 11, count: 18 },
-    8: { hp: 95, atk: 13, count: 20 },
-    9: { hp: 110, atk: 15, count: 22 },
-    10: { hp: 130, atk: 18, count: 24 },
+    1: { hp: COMBO_KILL_HP, atk: 5, count: 12 },
+    2: { hp: COMBO_KILL_HP, atk: 6, count: 16 },
+    3: { hp: COMBO_KILL_HP, atk: 7, count: 20 },
+    4: { hp: COMBO_KILL_HP, atk: 8, count: 24 },
+    5: { hp: COMBO_KILL_HP, atk: 9, count: 28 },
+    6: { hp: COMBO_KILL_HP, atk: 10, count: 32 },
+    7: { hp: COMBO_KILL_HP, atk: 11, count: 36 },
+    8: { hp: COMBO_KILL_HP, atk: 13, count: 40 },
+    9: { hp: COMBO_KILL_HP, atk: 15, count: 44 },
+    10: { hp: COMBO_KILL_HP, atk: 18, count: 48 },
   };
   const ATTACK_FRAMES = 26;
   const HURT_IFRAMES = 45;
-  const ATTACK_REACH = 96 * 3;
+  const ATTACK_REACH = 96 * 1.5; /* 原 96*3，缩小一倍 */
   const SWORD_CD_MS = 500; /* 已废弃：宝剑不再自动冷却攻击 */
   const FAN_CD_MS = 1000; /* 已废弃：扇子不再自动冷却攻击 */
+
+  /**
+   * 吕洞宾连击：全身帧 assets/renwudongzuo（剑与弧光已合成）
+   * 初始站立 dongzuo1；双击→2；三次→3+4 连贯；四次→5+6
+   */
+  const SWORD_COMBO = {
+    resetMs: 700,
+    bufferWindowMs: 160,
+    damageMul: 1,
+    critDamageMul: 1,
+    attackSpeedMul: 1,
+    /** 连招已改用 gedoudongzuo GIF，不再切旧全身 PNG */
+    useBodyFrames: false,
+    showSlashVfx: false,
+    steps: [
+      {
+        id: "a1",
+        label: "双击斩",
+        durationMs: 280,
+        chargeMs: 0,
+        activeStartMs: 60,
+        activeEndMs: 200,
+        bodyFrames: [2],
+        damageMul: 1,
+        reachMul: 1.05,
+        arc: { min: -70, max: 20 },
+        hitStopMs: 30,
+        knockback: 2.4,
+        bodyNudgePx: 2,
+        lean: 1,
+      },
+      {
+        id: "a2",
+        label: "三连",
+        durationMs: 360,
+        chargeMs: 0,
+        activeStartMs: 50,
+        activeEndMs: 280,
+        bodyFrames: [3, 4],
+        damageMul: 1.15,
+        reachMul: 1.18,
+        arc: { min: -20, max: 90 },
+        hitStopMs: 34,
+        knockback: 3,
+        bodyNudgePx: 2,
+        lean: 0,
+      },
+      {
+        id: "a3",
+        label: "四连",
+        durationMs: 420,
+        chargeMs: 40,
+        activeStartMs: 80,
+        activeEndMs: 340,
+        bodyFrames: [5, 6],
+        damageMul: 1.9,
+        reachMul: 1.4,
+        arc: { min: -75, max: 25 },
+        hitStopMs: 70,
+        knockback: 6.2,
+        bodyNudgePx: 3,
+        lean: 2,
+        shakePx: 3.5,
+        isCrit: true,
+      },
+    ],
+  };
+
+  /**
+   * 单击：08 → 14 → 15 → 16，回到待机。
+   * 两击：08 → … → 16 → 17 → 20 → 21 → 22 → 26 → 27 → 28，回到待机。
+   * 08→14 = 0.1s，14→15 = 0.2s，15 维持 0.3s，16→17 = 0.1s，
+   * 17→20 = 0.1s，20 维持 0.3s，21→22 = 0.1s，22 维持 0.4s，
+   * 26→27 = 0.1s，27 维持 0.4s，28 维持 0.3s。
+   */
+  const COMBO_CLICK_GAP = 350;
+  const COMBO_SCALE = 0.441;
+  const comboFrames = [
+    { src: "assets/gedoudongzuo/08.gif", duration: 100 },
+    { src: "assets/gedoudongzuo/14.png", duration: 200 },
+    { src: "assets/gedoudongzuo/15.png", duration: 300 },
+    { src: "assets/gedoudongzuo/16.gif", duration: 100 },
+    { src: "assets/gedoudongzuo/17.gif", duration: 100 },
+    { src: "assets/gedoudongzuo/20.gif", duration: 300 },
+    { src: "assets/gedoudongzuo/21.gif", duration: 100 },
+    { src: "assets/gedoudongzuo/22.gif", duration: 400 },
+    { src: "assets/gedoudongzuo/26.gif", duration: 100 },
+    { src: "assets/gedoudongzuo/27.gif", duration: 400 },
+    { src: "assets/gedoudongzuo/28.gif", duration: 300 },
+  ];
+  const comboActions = {
+    attack1: { start: 0, end: 3 },
+    attack2: { start: 4, end: 10 },
+  };
+  const COMBO_GIF_FILES = comboFrames.map((f) => f.src);
+  const frameDurations = comboFrames.map((f) => f.duration);
+  const COMBO_SWING_FRAMES = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1 };
+  const COMBO_GIF_HITS = {
+    1: { damageMul: 1.1, reachMul: 1.2, knockback: 2.6, hitStopMs: 28, arc: { min: -40, max: 70 } },
+    2: { damageMul: 1.2, reachMul: 1.25, knockback: 2.8, hitStopMs: 32, arc: { min: -28, max: 40 } },
+    5: { damageMul: 1.25, reachMul: 1.3, knockback: 3.0, hitStopMs: 34, arc: { min: -28, max: 40 } },
+    7: { damageMul: 1.6, reachMul: 1.4, knockback: 5.2, hitStopMs: 50, shakePx: 2.4, isCrit: true, arc: { min: -75, max: 30 } },
+  };
+
+  const comboGif = {
+    ready: false,
+    playing: false,
+    done: false,
+    frame: 0,
+    startedAt: 0,
+    lastNow: 0,
+    raf: 0,
+    images: [],
+    current: null,
+    queue: [],
+    locked: { attack1: false, attack2: false },
+  };
+  const comboClick = {
+    count: 0,
+    lastAt: 0,
+  };
+
+  const swordCombo = {
+    nextStep: 0,
+    attacking: false,
+    stepIndex: -1,
+    attackStartedAt: 0,
+    attackElapsed: 0,
+    lastTickAt: 0,
+    lastAttackAt: 0,
+    buffered: false,
+    hitStopUntil: 0,
+    hitIds: null,
+    nudgeX: 0,
+    shakeAmp: 0,
+    shakeUntil: 0,
+    stepCfg: null,
+    lastPoseFrame: 0,
+    slashShown: false,
+    slashPoseKey: "",
+  };
+
+  const comboArt = {
+    ready: false,
+    poseFrames: [],
+    slashFrames: [],
+    bodyFrames: Object.create(null),
+    bodyIdle: "",
+  };
+
+  const armSocketEl = document.getElementById("arm-socket");
+  const armWeaponEl = document.getElementById("arm-weapon");
+  const slashVfxEl = document.getElementById("slash-vfx");
   const SHOP_PRICE = 20;
   const SHOP_CATALOG = {
     baojian: {
-      name: "宝剑",
+      name: "纯阳剑",
       price: SHOP_PRICE,
       icon: "assets/shop/baojian.png",
       desc: "点击挥砍单体斩击（左右皆可）；攻击力 +2。可多次购买叠加。",
+      effect: "攻击力 +2",
       apply() {
         buffs.atk += 2;
       },
@@ -125,6 +323,7 @@
       price: SHOP_PRICE,
       icon: "assets/shop/bajiaoshan.png",
       desc: "点击挥砍范围扇击；范围 +48。可多次购买叠加。",
+      effect: "攻击范围 +48",
       apply() {
         buffs.reach += 48;
       },
@@ -134,14 +333,17 @@
       price: SHOP_PRICE,
       icon: "assets/shop/fenghuolun.png",
       desc: "脚踏风火，移动速度 +0.7。可多次购买叠加。",
+      effect: "移动速度 +0.7",
       apply() {
         buffs.speed += 0.7;
       },
     },
   };
-  /* 扇形攻击角度（相对水平向右，y 轴向上），单位度 */
-  const ARC_ANGLE_MIN = -28;
-  const ARC_ANGLE_MAX = 62;
+  /* 攻击扇区（相对水平向前，y 轴向上），单位度 */
+  const KNIFE_ARC = { min: -22, max: 22 }; /* 旧前刺扇区（保留） */
+  const SWORD_SLASH_ARC = { min: -48, max: 52 }; /* 吕洞宾：横向挥砍 */
+  const THRUST_FRAMES = 12; /* ≈0.2s，与天兵前刺一致 */
+  const FAN_VERT_ARC = { min: 18, max: 112 }; /* 钟离权：纵向弧 */
   const MIN_GAP_SPACING = 420;
   const MIN_BOSS_SPACING = 1400;
   const MIN_COIN_GAP = 110;
@@ -181,7 +383,7 @@
   }
 
   function randomGap(minRatio = 0.35) {
-    if (FORCE_ZERO_GAP) return 0;
+    if (FORCE_ZERO_GAP || TEST_ACTIONS) return 0;
     const maxG = maxSafeGap();
     const minG = Math.min(maxG, Math.max(24, maxG * minRatio));
     const gap = minG + Math.random() * (maxG - minG);
@@ -192,11 +394,16 @@
   const cursorPos = { x: -40, y: -40, tx: -40, ty: -40 };
   /* 开发期直接进格斗；正式游玩保持 false 以显示选人页 */
   const SKIP_INTRO = false;
+  /* 开发期：跳过游玩，直接打开关卡间法宝商店；正式游玩改回 false */
+  const SKIP_TO_SHOP = false;
+  /* 测动作：无限倒计时、不刷怪；测完改回 false */
+  const TEST_ACTIONS = false;
 
   const runScroll = { world: 0 };
   /* 场景视差平滑状态（避免跳跃时背景跟着抖） */
   const viewFx = { x: 0, y: 0 };
   const keys = { w: false, a: false, s: false, d: false };
+  const tapDash = { lastKey: "", lastAt: 0, dir: 0 };
   const hero = {
     x: 180,
     y: 110,
@@ -206,12 +413,31 @@
     onGround: true,
     dead: false,
     jumpsLeft: MAX_JUMPS,
+    jumpLock: 0,
+    jumpBufferedUntil: 0,
+    coyoteUntil: 0,
+    airGroundY: null,
     hp: MAX_HP,
     swordAnimFrames: 0,
     fanAnimFrames: 0,
     swordReadyAt: 0,
     fanReadyAt: 0,
     hurtFrames: 0,
+    moveDirX: 0,
+    moveDirY: 0,
+  };
+  /** 脚部行走：位移只改 local，且始终相对初始位置，禁止累积 */
+  const footWalk = {
+    enabled: false,
+    phase: 0,
+    phaseElapsed: 0,
+    active: false,
+    leftBase: { x: 0, y: 0 },
+    rightBase: { x: 0, y: 0 },
+    lastOxL: null,
+    lastOyL: null,
+    lastOxR: null,
+    lastOyR: null,
   };
   const platforms = [];
   const coins = [];
@@ -241,6 +467,8 @@
   const shopBought = { baojian: 0, bajiaoshan: 0, fenghuolun: 0 };
   let coinImgUrl = COIN_SRC;
   let enemyImgUrl = ENEMY_SRC;
+  let enemyWeaponUrl = ENEMY_WEAPON_SRC;
+  let knifeImgUrl = KNIFE_SRC;
   let floorImgUrl = FLOOR_SRC;
   /* 顶部透明区对应的显示像素，用于脚底对齐实体顶面 */
   let floorTopPad = 0;
@@ -502,42 +730,685 @@
     return c;
   }
 
+  function punchNearBlack(img, threshold = 18) {
+    const { w, h } = imageSize(img);
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, w, h);
+    const data = ctx.getImageData(0, 0, w, h);
+    const px = data.data;
+    for (let i = 0; i < px.length; i += 4) {
+      if (px[i] <= threshold && px[i + 1] <= threshold && px[i + 2] <= threshold) {
+        px[i + 3] = 0;
+      }
+    }
+    ctx.putImageData(data, 0, 0);
+    return c;
+  }
+
+  function sliceSheetFrames(img, cols) {
+    const { w, h } = imageSize(img);
+    const fw = Math.floor(w / cols);
+    const frames = [];
+    for (let i = 0; i < cols; i++) {
+      const c = document.createElement("canvas");
+      c.width = fw;
+      c.height = h;
+      const ctx = c.getContext("2d");
+      ctx.drawImage(img, i * fw, 0, fw, h, 0, 0, fw, h);
+      frames.push(c.toDataURL("image/png"));
+    }
+    return frames;
+  }
+
+  /** 吕洞宾全身帧已抠好透明底，直接使用原图 */
+  function loadBodySprite(src) {
+    return src;
+  }
+
   async function setRunnerSprite(heroId) {
     const src = HERO_SRC[heroId] || HERO_SRC.red;
     if (!runnerSprite || !runner) return;
     runner.dataset.hero = heroId;
-    /*
-     * 立绘有大块黑底，直接叠在深色跑道上几乎看不见。
-     * 先缩小再从边缘抠掉连通黑底（黄描边拦住，不会抠掉黑发）。
-     */
-    try {
-      const img = await loadImage(src);
-      const small = downsampleImage(img, 360);
-      const punched = punchSpriteBg(small, 250);
-      runnerSprite.src = punched.toDataURL("image/png");
-    } catch (err) {
-      console.warn("runner sprite punch failed, using raw", err);
-      runnerSprite.src = src;
-    }
+    runnerSprite.src = src;
     runnerSprite.style.opacity = "1";
     runnerSprite.style.visibility = "visible";
     runner.style.opacity = "1";
     runner.style.visibility = "visible";
-  }
-
-  async function prepareCoinArt() {
-    try {
-      const img = await loadImage(COIN_SRC);
-      const punched = punchSpriteBg(img, 248);
-      coinImgUrl = punched.toDataURL("image/png");
-    } catch (_) {
-      coinImgUrl = COIN_SRC;
+    if (heroId === "blue") {
+      footWalk.enabled = false;
+      runner.classList.add("is-combo-gif");
+      runner.classList.remove("has-foot-walk");
+      if (playerFeetEl) playerFeetEl.hidden = true;
+      resetFootWalk(true);
+    } else if (runner) {
+      footWalk.enabled = false;
+      runner.classList.remove("has-foot-walk", "is-combo-gif");
+      if (playerFeetEl) playerFeetEl.hidden = true;
+      resetFootWalk(true);
     }
   }
 
+  function initPlayerFeet() {
+    if (!playerFootLeft || !playerFootRight || !runner) return;
+    playerFootLeft.src = PLAYER_FOOT_SRC.left;
+    playerFootRight.src = PLAYER_FOOT_SRC.right;
+    footWalk.leftBase = { x: -35, y: 0 };
+    footWalk.rightBase = { x: -35, y: 0 };
+    footWalk.enabled = true;
+    runner.classList.add("has-foot-walk");
+    if (playerFeetEl) playerFeetEl.hidden = false;
+    resetFootWalk(true);
+  }
+
+  function setFootLocal(el, base, ox, oy, side) {
+    if (!el) return;
+    const x = (base.x + (ox | 0)) | 0;
+    const y = (base.y + (oy | 0)) | 0;
+    if (side === "L") {
+      if (footWalk.lastOxL === x && footWalk.lastOyL === y) return;
+      footWalk.lastOxL = x;
+      footWalk.lastOyL = y;
+    } else {
+      if (footWalk.lastOxR === x && footWalk.lastOyR === y) return;
+      footWalk.lastOxR = x;
+      footWalk.lastOyR = y;
+    }
+    el.style.transform = `translate(${x}px, ${y}px)`;
+  }
+
+  function resetFootWalk(force) {
+    footWalk.phase = 0;
+    footWalk.phaseElapsed = 0;
+    footWalk.active = false;
+    if (force) {
+      footWalk.lastOxL = null;
+      footWalk.lastOyL = null;
+      footWalk.lastOxR = null;
+      footWalk.lastOyR = null;
+    }
+    setFootLocal(playerFootLeft, footWalk.leftBase, 0, 0, "L");
+    setFootLocal(playerFootRight, footWalk.rightBase, 0, 0, "R");
+  }
+
+  /** 读取 WASD 轴并 normalize；世界方向 +x 右、+y 上 */
+  function readMoveIntent() {
+    let ix = 0;
+    let iy = 0;
+    if (keys.a) ix -= 1;
+    if (keys.d) ix += 1;
+    if (keys.w) iy += 1;
+    if (keys.s) iy -= 1;
+    const len = Math.hypot(ix, iy);
+    if (len > 0) {
+      ix /= len;
+      iy /= len;
+    }
+    return { ix, iy, moving: len > 0 };
+  }
+
+  /**
+   * 脚部步进：沿当前移动方向摆动。
+   * 本地位移相对初始 base，禁止累积；抵消 scaleX(-1) 镜像。
+   */
+  function updateFootWalk(dtMs) {
+    if (!footWalk.enabled || !playerFootLeft || !playerFootRight) return;
+    if (swordCombo.attacking && SWORD_COMBO.useBodyFrames) {
+      if (footWalk.active) resetFootWalk(true);
+      return;
+    }
+
+    const moving =
+      (Math.abs(hero.moveDirX) > 0.001 || Math.abs(hero.moveDirY) > 0.001) &&
+      !hero.dead &&
+      hero.onGround;
+
+    if (!moving) {
+      if (footWalk.active) resetFootWalk(true);
+      return;
+    }
+
+    if (!footWalk.active) {
+      footWalk.active = true;
+      footWalk.phase = 0;
+      footWalk.phaseElapsed = 0;
+    }
+
+    footWalk.phaseElapsed += dtMs;
+    while (footWalk.phaseElapsed >= FOOT_STEP_MS) {
+      footWalk.phaseElapsed -= FOOT_STEP_MS;
+      footWalk.phase = (footWalk.phase + 1) % 4;
+    }
+
+    const nx = hero.moveDirX;
+    const ny = hero.moveDirY;
+    const face = hero.facing < 0 ? -1 : 1;
+    const fxl = nx * face;
+    const fyl = -ny;
+
+    let leftFwd = 0;
+    let rightFwd = 0;
+    switch (footWalk.phase) {
+      case 0:
+        leftFwd = FOOT_FWD_PX;
+        rightFwd = -FOOT_BACK_PX;
+        break;
+      case 1:
+        leftFwd = 0;
+        rightFwd = 0;
+        break;
+      case 2:
+        leftFwd = -FOOT_BACK_PX;
+        rightFwd = FOOT_FWD_PX;
+        break;
+      default:
+        leftFwd = 0;
+        rightFwd = 0;
+        break;
+    }
+
+    setFootLocal(
+      playerFootLeft,
+      footWalk.leftBase,
+      Math.round(fxl * leftFwd),
+      Math.round(fyl * leftFwd),
+      "L"
+    );
+    setFootLocal(
+      playerFootRight,
+      footWalk.rightBase,
+      Math.round(fxl * rightFwd),
+      Math.round(fyl * rightFwd),
+      "R"
+    );
+  }
+
+  async function prepareCoinArt() {
+    coinImgUrl = COIN_SRC;
+  }
+
   async function prepareEnemyArt() {
-    /* 天兵已是透明底 PNG，不再抠图 */
     enemyImgUrl = ENEMY_SRC;
+    enemyWeaponUrl = ENEMY_WEAPON_SRC;
+  }
+
+  async function prepareKnifeArt() {
+    knifeImgUrl = KNIFE_SRC;
+  }
+
+  async function prepareComboGif() {
+    if (!comboStage) {
+      comboGif.ready = false;
+      return;
+    }
+    try {
+      comboStage.innerHTML = "";
+      const imgs = await Promise.all(
+        COMBO_GIF_FILES.map((src, i) =>
+          loadImage(src).then(async (img) => {
+            try {
+              if (img.decode) await img.decode();
+            } catch (_) {}
+            img.className = "combo-stage__frame";
+            img.alt = "";
+            img.draggable = false;
+            img.dataset.frame = String(i);
+            comboStage.appendChild(img);
+            return img;
+          })
+        )
+      );
+      comboGif.images = imgs;
+      comboGif.ready = imgs.length === COMBO_GIF_FILES.length;
+      drawComboGifFrame(0);
+    } catch (err) {
+      console.warn("combo gif prepare failed", err);
+      comboGif.ready = false;
+    }
+  }
+
+  function comboActionDuration(id) {
+    const a = comboActions[id];
+    let t = 0;
+    for (let i = a.start; i <= a.end; i++) t += comboFrames[i].duration;
+    return t;
+  }
+
+  function comboSegmentFrameAt(elapsed, start, end) {
+    let t = 0;
+    for (let i = start; i <= end; i++) {
+      t += comboFrames[i].duration;
+      if (elapsed < t) return i;
+    }
+    return end;
+  }
+
+  function drawComboGifFrame(index) {
+    const imgs = comboGif.images;
+    if (!imgs || !imgs.length) return;
+    const idx = Math.max(0, Math.min(imgs.length - 1, index | 0));
+    for (let i = 0; i < imgs.length; i++) {
+      imgs[i].classList.toggle("is-on", i === idx);
+    }
+  }
+
+  function stopComboGifRaf() {
+    if (comboGif.raf) {
+      cancelAnimationFrame(comboGif.raf);
+      comboGif.raf = 0;
+    }
+  }
+
+  function resetComboRoundState() {
+    comboGif.current = null;
+    comboGif.queue = [];
+    comboGif.locked = { attack1: false, attack2: false };
+    comboClick.count = 0;
+    comboClick.lastAt = 0;
+  }
+
+  function groundYAt(x) {
+    const s = surfaceAt(x);
+    return s != null ? s : hero.y;
+  }
+
+  function comboHopping() {
+    return !!(window.SwordCombat && SwordCombat.hopping && SwordCombat.state === "attack");
+  }
+
+  function jumpCamBase() {
+    if (hero.airGroundY != null) return hero.airGroundY;
+    return groundYAt(hero.x);
+  }
+
+  function cameraLookY() {
+    const shake = window.SwordCamera ? SwordCamera.getShake() : { x: 0, y: 0 };
+    if (!comboHopping() && !hero.onGround) return shake.y;
+    const base = groundYAt(hero.x);
+    return (window.SwordCamera ? SwordCamera.followY - base : 0) + shake.y;
+  }
+
+  function worldLookY() {
+    const shake = window.SwordCamera ? SwordCamera.getShake() : { x: 0, y: 0 };
+    if (!comboHopping() && !hero.onGround) return shake.y;
+    return cameraLookY();
+  }
+
+  function snapHeroToGround() {
+    if (!hero.onGround) return;
+    const s = surfaceAt(hero.x);
+    if (s == null) return;
+    hero.y = s;
+    hero.vy = 0;
+  }
+
+  function syncComboStagePos() {
+    if (window.SwordCombat && SwordCombat.ready) {
+      const camX = window.SwordCamera ? SwordCamera.getX() : runScroll.world;
+      SwordCombat.syncPos(hero, camX, cameraLookY());
+      return;
+    }
+    if (!comboStage || comboStage.hidden) return;
+    const scale = COMBO_SCALE;
+    const x = (hero._sx != null ? hero._sx : 0) - 510;
+    const y = hero._sy != null ? hero._sy : 0;
+    const sx = hero.facing < 0 ? -scale : scale;
+    comboStage.style.transform = `translate3d(${x}px, ${-y}px, 0) scale(${sx}, ${scale})`;
+    comboStage.style.transformOrigin = "510px 569px";
+  }
+
+  function showComboGifStage(on) {
+    if (!runner || !comboStage) return;
+    runner.classList.toggle("is-combo-gif", !!on);
+    comboStage.hidden = !on;
+    comboStage.classList.toggle("is-on", !!on);
+    if (on) {
+      setComboPoseMode(true);
+      if (playerFeetEl) playerFeetEl.hidden = true;
+      resetFootWalk(true);
+      syncComboStagePos();
+    }
+  }
+
+  /** 吕洞宾待机：连招画布第 1 帧，不用旧身体和脚 */
+  function showComboIdle() {
+    if (selected !== "blue" || !comboStage) return false;
+    if (window.SwordCombat && SwordCombat.ready) {
+      SwordCombat.showIdle();
+      showComboGifStage(true);
+      swordCombo.attacking = false;
+      if (runner) runner.classList.remove("is-attacking", "is-attacking-sword", "is-thrusting", "combo-charging");
+      return true;
+    }
+    if (!comboGif.ready) return false;
+    stopComboGifRaf();
+    comboGif.playing = false;
+    comboGif.done = false;
+    comboGif.frame = 0;
+    drawComboGifFrame(0);
+    showComboGifStage(true);
+    resetComboRoundState();
+    swordCombo.attacking = false;
+    swordCombo.stepCfg = null;
+    swordCombo.hitIds = null;
+    if (runner) {
+      runner.classList.remove("is-attacking", "is-attacking-sword", "is-thrusting", "combo-charging");
+    }
+    return true;
+  }
+
+  function hideComboGif() {
+    if (window.SwordCombat && SwordCombat.ready) {
+      SwordCombat.reset();
+      window.SwordInput && SwordInput.reset();
+      window.SwordHitstop && SwordHitstop.clearOnScene();
+    }
+    stopComboGifRaf();
+    comboGif.playing = false;
+    comboGif.done = false;
+    comboGif.frame = 0;
+    resetComboRoundState();
+    swordCombo.attacking = false;
+    swordCombo.stepCfg = null;
+    if (showComboIdle()) return;
+    showComboGifStage(false);
+    if (typeof setComboPoseMode === "function") setComboPoseMode(false);
+  }
+
+  function beginComboGifCombat() {
+    const now = performance.now();
+    swordCombo.attacking = true;
+    swordCombo.stepIndex = 0;
+    swordCombo.stepCfg = {
+      id: "gif14",
+      durationMs: 2400,
+      chargeMs: 0,
+      activeStartMs: 0,
+      activeEndMs: 2400,
+      damageMul: 1,
+      reachMul: 1.2,
+      arc: { min: -60, max: 40 },
+      hitStopMs: 28,
+      knockback: 2.6,
+    };
+    swordCombo.attackStartedAt = now;
+    swordCombo.attackElapsed = 0;
+    swordCombo.lastTickAt = now;
+    swordCombo.lastAttackAt = now;
+    swordCombo.buffered = false;
+    swordCombo.hitIds = new Set();
+    swordCombo.nudgeX = 0;
+    swordCombo.slashShown = false;
+    if (runner) {
+      runner.classList.add("is-attacking", "is-attacking-sword", "combo-a1");
+    }
+  }
+
+  function resolveComboGifHits(frameIdx) {
+    const spec = COMBO_GIF_HITS[frameIdx];
+    if (!spec || !running || hero.dead) return;
+    const heroW = (runner && runner.offsetWidth) || 90;
+    const { ox, oy } = attackOrigin(heroW);
+    const reach = swordReach() * (spec.reachMul || 1);
+    const hits = enemiesInArc(ox, oy, hero.facing, reach, spec.arc || SWORD_SLASH_ARC);
+    if (!hits.length) return;
+    let landed = false;
+    const dmgBase = playerAtk() * (spec.damageMul || 1) * (SWORD_COMBO.damageMul || 1);
+    const dmg = spec.isCrit ? dmgBase * (SWORD_COMBO.critDamageMul || 1) : dmgBase;
+    for (let i = 0; i < hits.length; i++) {
+      const e = hits[i];
+      if (!e || e.dead) continue;
+      const id = e.el || e;
+      if (swordCombo.hitIds && swordCombo.hitIds.has(id)) continue;
+      if (swordCombo.hitIds) swordCombo.hitIds.add(id);
+      hurtBoss(e, dmg, { knockback: spec.knockback || 2.4, facing: hero.facing });
+      landed = true;
+    }
+    if (landed) {
+      applyComboHitStop(spec.hitStopMs || 24);
+      if (spec.shakePx) triggerComboShake(spec.shakePx, spec.isCrit ? 140 : 90);
+    }
+  }
+
+  function returnComboToIdle() {
+    swordCombo.lastAttackAt = performance.now();
+    showComboIdle();
+  }
+
+  function startComboAction(id) {
+    const a = comboActions[id];
+    if (!a) return;
+    comboGif.current = id;
+    comboGif.playing = true;
+    comboGif.done = false;
+    comboGif.startedAt = performance.now();
+    comboGif.lastNow = comboGif.startedAt;
+    comboGif.frame = a.start;
+    showComboGifStage(true);
+    drawComboGifFrame(a.start);
+    beginComboGifCombat();
+    swordCombo.hitIds = new Set();
+    playComboSwingSfx(a.start);
+    if (!comboGif.raf) comboGif.raf = requestAnimationFrame(tickComboGif);
+  }
+
+  function enqueueComboAction(id) {
+    if (comboGif.locked[id]) return;
+    comboGif.locked[id] = true;
+    if (!comboGif.current) {
+      startComboAction(id);
+      return;
+    }
+    comboGif.queue.push(id);
+  }
+
+  function onComboActionComplete() {
+    const next = comboGif.queue.shift();
+    if (next) {
+      startComboAction(next);
+      return;
+    }
+    returnComboToIdle();
+  }
+
+  function tickComboGif(now) {
+    if (!comboGif.playing || !comboGif.current) return;
+    if (paused) {
+      comboGif.startedAt += now - comboGif.lastNow;
+      comboGif.lastNow = now;
+      comboGif.raf = requestAnimationFrame(tickComboGif);
+      return;
+    }
+    comboGif.lastNow = now;
+    const a = comboActions[comboGif.current];
+    const elapsed = now - comboGif.startedAt;
+    const dur = comboActionDuration(comboGif.current);
+    if (elapsed >= dur) {
+      onComboActionComplete();
+      if (comboGif.playing && comboGif.current) {
+        comboGif.raf = requestAnimationFrame(tickComboGif);
+      } else {
+        comboGif.raf = 0;
+      }
+      return;
+    }
+    const idx = comboSegmentFrameAt(elapsed, a.start, a.end);
+    if (idx !== comboGif.frame) {
+      comboGif.frame = idx;
+      drawComboGifFrame(idx);
+      swordCombo.hitIds = new Set();
+      playComboSwingSfx(idx);
+    }
+    if (running && !hero.dead && !inShop) {
+      resolveComboGifHits(comboGif.frame);
+    }
+    comboGif.raf = requestAnimationFrame(tickComboGif);
+  }
+
+  function playComboSwingSfx(idx) {
+    if (COMBO_SWING_FRAMES[idx]) sfxWhoosh();
+  }
+
+  function applyComboClickUnlock(count) {
+    if (count === 1) enqueueComboAction("attack1");
+    else if (count >= 2) enqueueComboAction("attack2");
+  }
+
+  function isHeroComboTarget(e) {
+    const x = e.clientX;
+    const y = e.clientY;
+    const hit = (el) => {
+      if (!el || el.hidden) return false;
+      const r = el.getBoundingClientRect();
+      return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+    };
+    return hit(runner) || hit(comboStage);
+  }
+
+  function updateComboClickWindow() {}
+
+  /**
+   * 单击立刻播 08→16；同一轮再点一下则在 16 后衔接 17→28。
+   * 不使用原生 dblclick。播放完整段期间多余点击忽略。
+   */
+  function handleComboClick() {
+    if (window.SwordCombat && SwordCombat.ready) {
+      return SwordCombat.requestAttack(1, performance.now());
+    }
+    return false;
+  }
+
+  function playCombo() {
+    if (window.SwordCombat && SwordCombat.ready) {
+      return SwordCombat.requestAttack(3, performance.now());
+    }
+    return false;
+  }
+
+  function bindSwordSystem() {
+    if (!window.SwordCombat || !window.SwordInput) return;
+    SwordCombat.bind({
+      getHero: () => hero,
+      getView() {
+        return {
+          camX: window.SwordCamera ? SwordCamera.followX : runScroll.world,
+          viewW: viewWidth(),
+          pad: 12,
+        };
+      },
+      moveHero(x, y) {
+        const prevX = hero.x;
+        hero.x = x;
+        hero.y = y;
+        hero.vy = 0;
+        clampActorX(hero);
+        clampHeroToView(hero);
+        const halfW = ((runner && runner.offsetWidth) || 90) * 0.42;
+        if (!(window.SwordCombat && SwordCombat.dashing)) {
+          resolveEnemySolids(hero, halfW, prevX);
+        }
+      },
+      strike(frameId, hitIds) {
+        const spec = SwordConfig.hits[frameId];
+        if (!spec || !running || hero.dead) return;
+        const hits = enemiesInComboHit(frameId, spec);
+        for (let i = 0; i < hits.length; i++) {
+          const e = hits[i];
+          if (!e || e.dead) continue;
+          const id = e.el || e;
+          if (hitIds.has(id)) continue;
+          hitIds.add(id);
+          const crit = !!(spec.crit || (spec.critChance && Math.random() < spec.critChance));
+          const dmg = playerAtk() * (spec.damageMul || 1) * (crit ? spec.critMul || 1.5 : 1);
+          hurtBoss(e, dmg, {
+            knockback: (spec.knockback || 2.4) * (crit ? 1.25 : 1),
+            facing: hero.facing,
+          });
+          if (crit && (frameId === "15" || frameId === "20" || frameId === "22" || frameId === "28") && window.SwordCamera) {
+            const shake = (window.SwordConfig && SwordConfig.shake[frameId]) || { amp: 16, ms: 100, kind: "impact" };
+            SwordCamera.triggerShake(frameId, performance.now(), {
+              amp: (shake.amp || 16) * 1.15,
+              ms: shake.ms || 100,
+              kind: "impact",
+              facing: hero.facing,
+            });
+          }
+          syncBossEl(e);
+        }
+      },
+      onAttackStart() {
+        swordCombo.attacking = true;
+        if (runner) runner.classList.add("is-attacking", "is-attacking-sword");
+      },
+      onAttackEnd() {
+        swordCombo.attacking = false;
+        if (runner) runner.classList.remove("is-attacking", "is-attacking-sword", "is-thrusting");
+        const halfW = ((runner && runner.offsetWidth) || 90) * 0.42;
+        const surface = surfaceAt(hero.x);
+        if (surface != null) {
+          hero.y = surface;
+          hero.vy = 0;
+          hero.onGround = true;
+        } else {
+          const landed = findLandingSurface(hero.y + 48, hero.y - 48, hero.x - halfW, hero.x + halfW);
+          if (landed != null) {
+            hero.y = landed;
+            hero.vy = 0;
+            hero.onGround = true;
+          }
+        }
+      },
+    });
+    SwordInput.onConfirm = (n) => {
+      if (!running || paused || hero.dead || inShop || selected !== "blue") return;
+      SwordCombat.requestAttack(n, performance.now());
+    };
+    SwordInput.canCollect = () => {
+      if (!running || paused || inShop || hero.dead || gameOver) return false;
+      if (selected !== "blue" || !SwordCombat.ready) return false;
+      if (SwordCombat.isBusy() && SwordCombat.attackId !== 1) return false;
+      return document.hasFocus();
+    };
+    SwordInput.isUiEvent = (e) => {
+      const t = e.target;
+      return !!(
+        t &&
+        t.closest &&
+        (t.closest(".bag-btn") ||
+          t.closest(".bag-panel") ||
+          t.closest(".shop") ||
+          t.closest(".pause-overlay") ||
+          t.closest(".gameover-overlay") ||
+          t.closest(".hud") ||
+          t.closest("button") ||
+          t.closest("a"))
+      );
+    };
+  }
+
+  async function prepareComboArt() {
+    try {
+      bindSwordSystem();
+      if (window.SwordCombat && comboStage) {
+        await SwordCombat.prepare(comboStage);
+        if (window.SwordAudio && SwordAudio.prepare) await SwordAudio.prepare();
+        comboGif.ready = SwordCombat.ready;
+        comboArt.ready = SwordCombat.ready;
+        showComboGifStage(true);
+        return;
+      }
+      await prepareComboGif();
+      comboArt.bodyIdle = BLUE_BODY_ATK.idle;
+      comboArt.bodyFrames = Object.create(null);
+      comboArt.poseFrames = [];
+      comboArt.slashFrames = [];
+      comboArt.ready = comboGif.ready;
+    } catch (err) {
+      console.warn("combo art prepare failed", err);
+      comboArt.ready = false;
+    }
   }
 
   async function prepareFloorArt() {
@@ -606,6 +1477,10 @@
 
   /** 挥剑划破空气的破风声 */
   function sfxWhoosh() {
+    if (window.SwordAudio) {
+      SwordAudio.playSlash("15");
+      return;
+    }
     const ctx = ensureAudio();
     if (!ctx) return;
     const dur = 0.2;
@@ -626,18 +1501,57 @@
     filter.frequency.exponentialRampToValueAtTime(320, t0 + dur);
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.0001, t0);
-    gain.gain.exponentialRampToValueAtTime(0.14, t0 + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.2, t0 + 0.012);
     gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     src.connect(filter);
     filter.connect(gain);
     gain.connect(ctx.destination);
     src.start(t0);
     src.stop(t0 + dur + 0.02);
-    playTone({ freq: 1100, dur: 0.11, type: "sawtooth", vol: 0.028, slide: 160 });
+    playTone({ freq: 1100, dur: 0.11, type: "sawtooth", vol: 0.04, slide: 160 });
+  }
+
+  /** 天兵武器划破风声（略短，便于 0.2s 连刺） */
+  function sfxEnemySlash() {
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const dur = 0.14;
+    const t0 = ctx.currentTime;
+    const n = Math.max(1, (ctx.sampleRate * dur) | 0);
+    const buffer = ctx.createBuffer(1, n, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < n; i++) {
+      const env = 1 - i / n;
+      data[i] = (Math.random() * 2 - 1) * env * env;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.Q.value = 0.85;
+    filter.frequency.setValueAtTime(2600, t0);
+    filter.frequency.exponentialRampToValueAtTime(380, t0 + dur);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.12, t0 + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    src.start(t0);
+    src.stop(t0 + dur + 0.02);
+    playTone({ freq: 980, dur: 0.08, type: "sawtooth", vol: 0.022, slide: 180 });
   }
 
   function sfxHit() {
     playTone({ freq: 180, dur: 0.08, type: "square", vol: 0.07, slide: 90 });
+  }
+
+  /** 连招每一击：破风 + 命中顿挫 */
+  function sfxComboStrike() {
+    sfxWhoosh();
+    playTone({ freq: 220, dur: 0.09, type: "square", vol: 0.08, slide: 70 });
+    playTone({ freq: 90, dur: 0.11, type: "sawtooth", vol: 0.05, slide: 55, delay: 0.012 });
   }
 
   /** 掉命：短促偏高两声（类马里奥踩怪，无下滑、不闷） */
@@ -658,17 +1572,19 @@
     portrait.addEventListener("animationend", clear, { once: true });
   }
 
-  function pointInAttackArc(ox, oy, px, py, facing, reach) {
+  function pointInAttackArc(ox, oy, px, py, facing, reach, arc) {
     const dx = (px - ox) * (facing < 0 ? -1 : 1);
     const dy = py - oy;
     const dist = Math.hypot(dx, dy);
-    if (dist > reach || dist < 12) return false;
+    if (dist > reach || dist < 10) return false;
     const deg = (Math.atan2(dy, dx) * 180) / Math.PI;
-    return deg >= ARC_ANGLE_MIN && deg <= ARC_ANGLE_MAX;
+    const min = arc && arc.min != null ? arc.min : KNIFE_ARC.min;
+    const max = arc && arc.max != null ? arc.max : KNIFE_ARC.max;
+    return deg >= min && deg <= max;
   }
 
   function swordReach() {
-    return ATTACK_REACH;
+    return ATTACK_REACH + buffs.reach;
   }
 
   function fanReach() {
@@ -682,14 +1598,33 @@
     };
   }
 
-  function enemiesInArc(ox, oy, facing, reach) {
+  function enemiesInComboHit(frameId, spec) {
+    const shift = (window.SwordConfig && SwordConfig.frameShift && SwordConfig.frameShift[frameId]) || {};
+    const facing = hero.facing < 0 ? -1 : 1;
+    const shiftX =
+      window.SwordCombat && SwordCombat.appliedShiftX != null ? SwordCombat.appliedShiftX : shift.x || 0;
+    const reach = swordReach() * ((spec && spec.reachMul) || 1) + shiftX * 0.65 + 48;
+    const hits = [];
+    for (let i = 0; i < enemies.length; i++) {
+      const e = enemies[i];
+      if (!e || e.dead) continue;
+      const dx = (e.x - hero.x) * facing;
+      const dy = Math.abs((e.y || 0) - hero.y);
+      if (dx < -36 || dx > reach) continue;
+      if (dy > 96) continue;
+      hits.push(e);
+    }
+    return hits;
+  }
+
+  function enemiesInArc(ox, oy, facing, reach, arc) {
     const hits = [];
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
       if (e.dead) continue;
       const eCx = e.x;
       const eCy = e.y + e.h * 0.42;
-      if (pointInAttackArc(ox, oy, eCx, eCy, facing, reach)) hits.push(e);
+      if (pointInAttackArc(ox, oy, eCx, eCy, facing, reach, arc)) hits.push(e);
     }
     return hits;
   }
@@ -733,8 +1668,8 @@
   }
 
   function syncPartyHud() {
-    // 选人页：红蓝头像+血条都显示；点开始进入后只留出战角色
-    const single = started || running || game.classList.contains("is-running");
+    // 选人/加载中：红蓝头像+血条都显示；真正进入关卡页后才只留出战角色（命数同时出现）
+    const single = running || game.classList.contains("is-running");
     document.querySelectorAll(".party .member").forEach((member) => {
       if (!single) {
         member.hidden = false;
@@ -746,21 +1681,34 @@
     renderLives();
   }
 
-  function openGameOver() {
+  function openGameOver(reason = "lives") {
     gameOver = true;
     paused = true;
     hero.dead = true;
     hero.vx = 0;
     hero.vy = 0;
+    stageBusy = true;
     if (toast) {
       toast.hidden = true;
       toast.classList.remove("is-show");
     }
     if (pauseOverlay) pauseOverlay.hidden = true;
     if (shopEl) shopEl.hidden = true;
+    inShop = false;
+    game.classList.remove("is-shop");
     runway.classList.add("is-paused");
     if (bagBtn) bagBtn.hidden = true;
     setBagOpen(false);
+    if (gameoverTitleEl) {
+      gameoverTitleEl.textContent = reason === "timeout" ? "时间到" : "命数耗尽";
+    }
+    if (gameoverHintEl) {
+      gameoverHintEl.textContent =
+        reason === "timeout"
+          ? "未能在通关时间内消灭全部天兵"
+          : "是否再来一局挑战宝阁？";
+    }
+    if (gameoverContinueBtn) gameoverContinueBtn.textContent = "再来一局";
     if (gameoverOverlay) {
       gameoverOverlay.hidden = false;
       gameoverOverlay.removeAttribute("hidden");
@@ -770,22 +1718,36 @@
     renderLives();
   }
 
+  /** 再来一局：从第 1 关重新开始 */
   function continueChallenge() {
     if (!gameOver) return;
     gameOver = false;
     if (gameoverOverlay) gameoverOverlay.hidden = true;
     game.classList.remove("is-gameover");
     if (bagBtn) bagBtn.hidden = false;
+    inShop = false;
+    stageBusy = false;
+    if (shopEl) shopEl.hidden = true;
+    game.classList.remove("is-shop");
     heroLives = START_LIVES;
     hero.hp = MAX_HP;
     hero.dead = false;
+    hero.hurtFrames = 0;
+    resetRunBuffs();
+    grantStartingLoadout();
+    coinCount = 0;
+    drawCoinCount(formatCoins(0));
     renderHp();
     renderLives();
-    resetHeroOnTrack();
+    initTrack();
+    running = true;
     setPaused(false);
-    showToast("继续挑战！", 1000);
+    syncHeroEl();
+    syncPartyHud();
+    showToast("再来一局 · 第 1 关", 1100);
   }
 
+  /** 退出游戏：回到初始选人页 */
   function quitGame() {
     window.location.reload();
   }
@@ -804,8 +1766,21 @@
     return PLAYER_ATK + buffs.atk;
   }
 
+  function tapDashActive() {
+    return (tapDash.dir < 0 && keys.a && !keys.d) || (tapDash.dir > 0 && keys.d && !keys.a);
+  }
+
+  function noteMoveTap(key, now) {
+    if (key !== "a" && key !== "d") return;
+    const dir = key === "a" ? -1 : 1;
+    if (tapDash.lastKey === key && now - tapDash.lastAt <= TAP_DASH_MS) tapDash.dir = dir;
+    else if (tapDash.dir && tapDash.dir !== dir) tapDash.dir = 0;
+    tapDash.lastKey = key;
+    tapDash.lastAt = now;
+  }
+
   function playerMoveSpeed() {
-    return MOVE_SPEED + buffs.speed;
+    return (MOVE_SPEED + buffs.speed) * (tapDashActive() ? TAP_DASH_MUL : 1);
   }
 
   function resetRunBuffs() {
@@ -818,11 +1793,11 @@
   }
 
   function hasSword() {
-    return (shopBought.baojian || 0) > 0;
+    return (shopBought.baojian || 0) > 0 || slotsHaveWeaponKind("sword");
   }
 
   function hasFan() {
-    return (shopBought.bajiaoshan || 0) > 0;
+    return (shopBought.bajiaoshan || 0) > 0 || slotsHaveWeaponKind("fan");
   }
 
   function hasMeleeVisual() {
@@ -833,56 +1808,324 @@
     return Math.min(6, Math.max(0, shopBought[id] | 0));
   }
 
-  function appendStackedWeapon(kind, count, iconSrc, baseDelay = 0) {
-    if (!weaponRack || count <= 0) return;
-    for (let i = 0; i < count; i++) {
-      const spread = i - (count - 1) / 2;
-      const slot = document.createElement("div");
-      slot.className = `weapon-slot weapon-slot--${kind}`;
-      slot.style.setProperty("--stack-x", `${(spread * 11).toFixed(1)}px`);
-      slot.style.setProperty("--stack-y", `${(spread * -7).toFixed(1)}px`);
-      slot.style.setProperty("--stack-rot", `${(spread * 9).toFixed(1)}deg`);
-      slot.style.setProperty("--stack-delay", `${(baseDelay + i * 0.028).toFixed(3)}s`);
+  /* ========== Weapon Slot 系统（总数固定 6，锚点可自由分配）========== */
+  const ANCHOR_TYPE = {
+    LeftHand: "LeftHand",
+    RightHand: "RightHand",
+    Feet: "Feet",
+  };
+
+  /** 身体锚点基准（相对 .runner__body：left%/bottom% + 像素微调） */
+  const ANCHOR_BASE = {
+    RightHand: { leftPct: 100, bottomPct: 42, ox: -18, oy: -13 },
+    LeftHand: { leftPct: 18, bottomPct: 44, ox: 6, oy: -10 },
+    Feet: { leftPct: 50, bottomPct: 6, ox: 0, oy: 2 },
+  };
+
+  const WEAPON_SLOT_COUNT = 6;
+  /** Debug：显示 6 个槽位标记；游戏内按 F9 开关 */
+  let WEAPON_SLOT_DEBUG = false;
+
+  function makeEmptySlot(anchorType, localPos, renderOrder) {
+    return {
+      anchorType: anchorType || ANCHOR_TYPE.RightHand,
+      localPosition: {
+        x: (localPos && localPos.x) || 0,
+        y: (localPos && localPos.y) || 0,
+      },
+      localRotation: 0,
+      localScale: 1,
+      renderOrder: renderOrder != null ? renderOrder : 0,
+      equippedWeapon: null,
+      _el: null,
+      _marker: null,
+    };
+  }
+
+  /** 默认布局：1 右手 + 1 左手 + 4 脚（脚部错开，避免重叠） */
+  function createDefaultWeaponSlots() {
+    return [
+      makeEmptySlot(ANCHOR_TYPE.RightHand, { x: 0, y: 0 }, 5),
+      makeEmptySlot(ANCHOR_TYPE.LeftHand, { x: 0, y: 0 }, 4),
+      makeEmptySlot(ANCHOR_TYPE.Feet, { x: -14, y: 0 }, 1),
+      makeEmptySlot(ANCHOR_TYPE.Feet, { x: 14, y: 0 }, 2),
+      makeEmptySlot(ANCHOR_TYPE.Feet, { x: -7, y: 5 }, 3),
+      makeEmptySlot(ANCHOR_TYPE.Feet, { x: 7, y: 5 }, 0),
+    ];
+  }
+
+  const WeaponSlots = createDefaultWeaponSlots();
+
+  function createWeaponInstance(itemId, overrides) {
+    const catalog = SHOP_CATALOG[itemId];
+    const kind =
+      itemId === "baojian" ? "sword" : itemId === "bajiaoshan" ? "fan" : itemId === "fenghuolun" ? "wheel" : "sword";
+    return {
+      id: itemId,
+      kind,
+      name: (overrides && overrides.name) || (catalog && catalog.name) || itemId,
+      icon:
+        (overrides && overrides.icon) ||
+        (catalog && catalog.icon) ||
+        "assets/shop/baojian.png",
+    };
+  }
+
+  function slotsHaveWeaponKind(kind) {
+    for (let i = 0; i < WeaponSlots.length; i++) {
+      const w = WeaponSlots[i].equippedWeapon;
+      if (w && w.kind === kind) return true;
+    }
+    return false;
+  }
+
+  function preferredAnchorsForWeapon(weapon) {
+    if (!weapon) return [ANCHOR_TYPE.RightHand];
+    if (weapon.kind === "wheel") return [ANCHOR_TYPE.Feet, ANCHOR_TYPE.RightHand, ANCHOR_TYPE.LeftHand];
+    if (weapon.kind === "fan") return [ANCHOR_TYPE.LeftHand, ANCHOR_TYPE.RightHand, ANCHOR_TYPE.Feet];
+    return [ANCHOR_TYPE.RightHand, ANCHOR_TYPE.LeftHand, ANCHOR_TYPE.Feet];
+  }
+
+  function findSlotForEquip(weapon) {
+    const prefs = preferredAnchorsForWeapon(weapon);
+    for (let p = 0; p < prefs.length; p++) {
+      const anchor = prefs[p];
+      for (let i = 0; i < WeaponSlots.length; i++) {
+        const s = WeaponSlots[i];
+        if (s.anchorType === anchor && !s.equippedWeapon) return i;
+      }
+    }
+    for (let i = 0; i < WeaponSlots.length; i++) {
+      if (!WeaponSlots[i].equippedWeapon) return i;
+    }
+    return -1;
+  }
+
+  function equipWeapon(slotIndex, weapon) {
+    if (slotIndex < 0 || slotIndex >= WEAPON_SLOT_COUNT) return false;
+    if (!weapon) return false;
+    WeaponSlots[slotIndex].equippedWeapon = {
+      id: weapon.id,
+      kind: weapon.kind,
+      name: weapon.name,
+      icon: weapon.icon,
+    };
+    renderWeaponSlots();
+    return true;
+  }
+
+  function unequipWeapon(slotIndex) {
+    if (slotIndex < 0 || slotIndex >= WEAPON_SLOT_COUNT) return false;
+    WeaponSlots[slotIndex].equippedWeapon = null;
+    renderWeaponSlots();
+    return true;
+  }
+
+  function setSlotAnchor(slotIndex, anchorType) {
+    if (slotIndex < 0 || slotIndex >= WEAPON_SLOT_COUNT) return false;
+    if (!ANCHOR_BASE[anchorType]) return false;
+    WeaponSlots[slotIndex].anchorType = anchorType;
+    renderWeaponSlots();
+    return true;
+  }
+
+  function clearAllWeaponSlots() {
+    for (let i = 0; i < WeaponSlots.length; i++) {
+      WeaponSlots[i].equippedWeapon = null;
+    }
+  }
+
+  function ensureWeaponSlotElements() {
+    if (!weaponRack) return;
+    weaponRack.hidden = false;
+    if (weaponRack.dataset.slotSystem === "1" && weaponRack.childElementCount >= WEAPON_SLOT_COUNT) {
+      return;
+    }
+    weaponRack.innerHTML = "";
+    weaponRack.dataset.slotSystem = "1";
+    for (let i = 0; i < WEAPON_SLOT_COUNT; i++) {
+      const el = document.createElement("div");
+      el.className = "wslot";
+      el.dataset.slot = String(i);
 
       const arm = document.createElement("div");
-      arm.className = `weapon-arm weapon-arm--${kind}`;
+      arm.className = "weapon-arm";
       const arc = document.createElement("div");
-      arc.className = `weapon-arc weapon-arc--${kind}`;
+      arc.className = "weapon-arc";
       arc.setAttribute("aria-hidden", "true");
       const img = document.createElement("img");
-      img.className = `weapon-sprite weapon-sprite--${kind}`;
-      img.src = iconSrc;
+      img.className = "weapon-sprite";
       img.alt = "";
       img.draggable = false;
       arm.appendChild(arc);
       arm.appendChild(img);
-      slot.appendChild(arm);
-      weaponRack.appendChild(slot);
+      el.appendChild(arm);
+
+      const marker = document.createElement("div");
+      marker.className = "wslot__marker";
+      marker.textContent = String(i);
+      marker.setAttribute("aria-hidden", "true");
+      el.appendChild(marker);
+
+      weaponRack.appendChild(el);
+      WeaponSlots[i]._el = el;
+      WeaponSlots[i]._marker = marker;
     }
   }
 
+  function renderWeaponSlots() {
+    if (!weaponRack || !runner) return;
+    ensureWeaponSlotElements();
+
+    let anyWeapon = false;
+    let anySword = false;
+    let anyFan = false;
+
+    const order = WeaponSlots.map((s, i) => i).sort(
+      (a, b) => (WeaponSlots[a].renderOrder | 0) - (WeaponSlots[b].renderOrder | 0)
+    );
+
+    for (let o = 0; o < order.length; o++) {
+      const i = order[o];
+      const slot = WeaponSlots[i];
+      let el = slot._el;
+      if (!el || !el.isConnected) {
+        ensureWeaponSlotElements();
+        el = slot._el;
+      }
+      if (!el) continue;
+
+      const base = ANCHOR_BASE[slot.anchorType] || ANCHOR_BASE.RightHand;
+      const lx = (slot.localPosition && slot.localPosition.x) || 0;
+      const ly = (slot.localPosition && slot.localPosition.y) || 0;
+      const rot = slot.localRotation || 0;
+      const scale = slot.localScale != null ? slot.localScale : 1;
+
+      el.style.left = `${base.leftPct}%`;
+      el.style.bottom = `${base.bottomPct}%`;
+      el.style.zIndex = String(10 + (slot.renderOrder | 0));
+      el.style.setProperty("--wx", `${(base.ox || 0) + lx}px`);
+      el.style.setProperty("--wy", `${-((base.oy || 0) + ly)}px`);
+      el.style.setProperty("--wrot", `${rot}deg`);
+      el.style.setProperty("--wscale", String(scale));
+      el.dataset.anchor = slot.anchorType;
+
+      const arm = el.querySelector(".weapon-arm");
+      const arc = el.querySelector(".weapon-arc");
+      const img = el.querySelector(".weapon-sprite");
+      const marker = slot._marker || el.querySelector(".wslot__marker");
+      const weapon = slot.equippedWeapon;
+
+      if (weapon && img && arm && arc) {
+        anyWeapon = true;
+        const kind = weapon.kind || "sword";
+        if (kind === "sword") anySword = true;
+        if (kind === "fan") anyFan = true;
+        arm.className = `weapon-arm weapon-arm--${kind}`;
+        arc.className = `weapon-arc weapon-arc--${kind}`;
+        img.className = `weapon-sprite weapon-sprite--${kind}`;
+        img.src = weapon.icon;
+        img.hidden = false;
+        arm.hidden = false;
+      } else if (img && arm) {
+        img.removeAttribute("src");
+        img.hidden = true;
+        arm.className = "weapon-arm";
+        if (arc) arc.className = "weapon-arc";
+      }
+
+      if (marker) {
+        marker.hidden = !WEAPON_SLOT_DEBUG;
+        marker.dataset.anchor = slot.anchorType;
+        marker.title = `Slot${i} · ${slot.anchorType}${weapon ? ` · ${weapon.name}` : " · empty"}`;
+      }
+    }
+
+    weaponRack.hidden = !anyWeapon && !WEAPON_SLOT_DEBUG;
+    weaponRack.classList.toggle("is-debug", WEAPON_SLOT_DEBUG);
+    runner.classList.toggle("has-sword", anySword);
+    runner.classList.toggle("has-fan", anyFan);
+    runner.classList.toggle("has-melee", anySword || anyFan);
+    runner.classList.toggle("is-knife-hero", selected === "blue");
+    runner.classList.toggle("is-fan-hero", selected === "red");
+  }
+
+  /**
+   * 按库存重建 6 槽装备（默认武器 + 商店购入）。
+   * 数量上限仍为 6；超出部分只保留数值 buff，不再显示。
+   */
   function syncWeaponVisual() {
-    const swords = itemVisualCount("baojian");
-    const fans = itemVisualCount("bajiaoshan");
-    runner.classList.toggle("has-sword", swords > 0);
-    runner.classList.toggle("has-fan", fans > 0);
-    runner.classList.toggle("has-melee", hasMeleeVisual());
-    if (!weaponRack) return;
-    weaponRack.hidden = swords + fans <= 0;
-    weaponRack.innerHTML = "";
-    appendStackedWeapon("sword", swords, "assets/shop/baojian.png", 0);
-    appendStackedWeapon("fan", fans, "assets/shop/bajiaoshan.png", swords * 0.02);
+    clearAllWeaponSlots();
+
+    /* 吕洞宾全身帧已含佩剑，不再叠武器架剑 */
+    if (selected === "blue" && SWORD_COMBO.useBodyFrames) {
+      renderWeaponSlots();
+      if (weaponRack) weaponRack.hidden = true;
+      runner.classList.remove("has-sword", "has-fan", "has-melee");
+      runner.classList.add("is-knife-hero");
+      runner.classList.remove("is-fan-hero");
+      return;
+    }
+
+    const needSword = Math.max(shopBought.baojian | 0, selected === "blue" ? 1 : 0);
+    const needFan = Math.max(shopBought.bajiaoshan | 0, selected === "red" ? 1 : 0);
+    const needWheel = shopBought.fenghuolun | 0;
+
+    for (let n = 0; n < needSword; n++) {
+      const w =
+        selected === "blue" && n === 0
+          ? createWeaponInstance("baojian")
+          : createWeaponInstance("baojian");
+      const idx = findSlotForEquip(w);
+      if (idx < 0) break;
+      WeaponSlots[idx].equippedWeapon = w;
+    }
+    for (let n = 0; n < needFan; n++) {
+      const w =
+        selected === "red" && n === 0
+          ? createWeaponInstance("bajiaoshan", { icon: "assets/shanzi.png" })
+          : createWeaponInstance("bajiaoshan");
+      const idx = findSlotForEquip(w);
+      if (idx < 0) break;
+      WeaponSlots[idx].equippedWeapon = w;
+    }
+    for (let n = 0; n < needWheel; n++) {
+      const w = createWeaponInstance("fenghuolun");
+      const idx = findSlotForEquip(w);
+      if (idx < 0) break;
+      WeaponSlots[idx].equippedWeapon = w;
+    }
+
+    renderWeaponSlots();
   }
 
-  /** 青衫开局自带 1 把宝剑 */
+  /** 开局按角色显示默认兵器外观（不计入商店已购） */
   function grantStartingLoadout() {
-    if (selected === "blue") {
-      const n = 1;
-      shopBought.baojian = n;
-      buffs.atk += 2 * n;
-    }
     syncWeaponVisual();
   }
+
+  function setWeaponSlotDebug(on) {
+    WEAPON_SLOT_DEBUG = !!on;
+    renderWeaponSlots();
+  }
+
+  function toggleWeaponSlotDebug() {
+    setWeaponSlotDebug(!WEAPON_SLOT_DEBUG);
+    showToast(WEAPON_SLOT_DEBUG ? "Weapon Slot Debug ON" : "Weapon Slot Debug OFF", 900);
+  }
+
+  /* 控制台 / 外部调试用 */
+  window.WeaponSlotAPI = {
+    slots: WeaponSlots,
+    equipWeapon,
+    unequipWeapon,
+    setSlotAnchor,
+    setDebug: setWeaponSlotDebug,
+    render: renderWeaponSlots,
+    ANCHOR_TYPE,
+    ANCHOR_BASE,
+  };
+  window.playCombo = playCombo;
 
   function ownedShopSummary() {
     const parts = [];
@@ -895,23 +2138,26 @@
 
   function syncShopTip() {
     if (shopFocus < 0 || !shopSlots[shopFocus]) {
-      const summary = ownedShopSummary();
-      if (shopTipName) shopTipName.textContent = summary ? "已持有法宝" : "点击商品查看详情";
+      if (shopTipEl) shopTipEl.classList.remove("is-detail");
+      if (shopTipName) {
+        shopTipName.hidden = false;
+        shopTipName.textContent = "点击商品查看详情";
+      }
       if (shopTipDesc) {
-        shopTipDesc.textContent = summary
-          ? summary
-          : "选中后点购买；备好后点「进入下一关」继续闯关";
+        shopTipDesc.textContent = "选中后点购买；备好后点「进入下一关」继续闯关";
       }
       return;
     }
     const id = shopSlots[shopFocus].dataset.item;
     const item = SHOP_CATALOG[id];
     if (!item) return;
-    if (shopTipName) shopTipName.textContent = item.name;
+    if (shopTipEl) shopTipEl.classList.add("is-detail");
+    if (shopTipName) shopTipName.hidden = true;
     if (shopTipDesc) {
       const owned = shopBought[id] || 0;
+      const effect = item.effect || item.desc;
       shopTipDesc.textContent =
-        owned > 0 ? `${item.desc}（已拥有 x${owned}）` : item.desc;
+        owned > 0 ? `${effect}（已拥有 x${owned}）` : effect;
     }
   }
 
@@ -998,7 +2244,7 @@
     }
     if (stageTimerEl) stageTimerEl.hidden = true;
     if (bagBtn) bagBtn.hidden = true;
-    if (shopNextBtn) shopNextBtn.textContent = `进入第 ${nextStage} 关`;
+    if (shopNextBtn) shopNextBtn.innerHTML = `进入第 <span class="shop__next-n">${nextStage}</span> 关`;
     game.classList.add("is-shop");
     cursor.classList.remove("is-on");
     syncShopUi();
@@ -1066,7 +2312,7 @@
     return {
       hp: Math.round(base.hp + extra * 22),
       atk: Math.round(base.atk + extra * 3),
-      count: base.count + extra * 2,
+      count: base.count + extra * 4,
     };
   }
 
@@ -1081,7 +2327,7 @@
   /** 单波刷怪数量（不超过本关剩余配额） */
   function waveSizeForStage(n) {
     const total = stageMobStats(n).count;
-    return Math.min(4, Math.max(2, Math.ceil(total / 3)));
+    return Math.min(8, Math.max(4, Math.ceil(total / 3)));
   }
 
   function livingEnemyCount() {
@@ -1100,13 +2346,12 @@
   }
 
   function updateStageHud() {
-    if (stageLabelEl) stageLabelEl.textContent = `第 ${stage} 关`;
+    if (stageLabelEl) stageLabelEl.textContent = TEST_ACTIONS ? "测试" : `第 ${stage} 关`;
     if (stageTimeEl) {
-      const sec = Math.max(0, Math.ceil(stageTimeLeft));
-      stageTimeEl.textContent = String(sec);
+      stageTimeEl.textContent = TEST_ACTIONS ? "∞" : String(Math.max(0, Math.ceil(stageTimeLeft)));
     }
     if (stageTimerEl) {
-      stageTimerEl.classList.toggle("is-urgent", stageTimeLeft <= 5 && stageTimeLeft > 0);
+      stageTimerEl.classList.toggle("is-urgent", !TEST_ACTIONS && stageTimeLeft <= 5 && stageTimeLeft > 0);
     }
   }
 
@@ -1115,7 +2360,7 @@
     for (let i = 0; i < drops; i++) {
       const ox = (Math.random() - 0.5) * 56;
       const oy = 36 + Math.random() * 48;
-      addCoin(boss.x + ox, boss.y + oy);
+      addCoin(boss.x + ox, boss.y + oy, true);
     }
   }
 
@@ -1125,8 +2370,9 @@
     count = Math.min(count | 0, left);
     if (!plats.length || count <= 0) return;
     for (let i = 0; i < count; i++) {
-      const plat = plats[(Math.random() * plats.length) | 0];
-      let x = plat.x + 50 + Math.random() * Math.max(24, plat.w - 100);
+      const plat = plats[i % plats.length];
+      const span = Math.max(24, plat.w - 100);
+      let x = plat.x + 50 + ((i / Math.max(1, count)) + Math.random() * 0.18) * span;
       x = Math.min(arenaMaxX(), Math.max(arenaMinX(), x));
       if (Math.abs(x - hero.x) < 90) {
         x = Math.min(arenaMaxX(), Math.max(arenaMinX(), hero.x + (i % 2 === 0 ? 140 : -140)));
@@ -1150,39 +2396,56 @@
       grantStartingLoadout();
     }
     const mob = stageMobStats(stage);
-    stageEnemyTotal = mob.count;
+    stageEnemyTotal = TEST_ACTIONS ? 0 : mob.count;
     stageSpawned = 0;
-    stageTimeLeft = stageDuration(stage);
+    stageTimeLeft = TEST_ACTIONS ? Infinity : stageDuration(stage);
     stageClock = performance.now();
     waveCooldown = 20;
     if (stageTimerEl) stageTimerEl.hidden = false;
     if (bagBtn) bagBtn.hidden = false;
     updateStageHud();
-    spawnWave(waveSizeForStage(stage));
-    showToast(`第 ${stage} 关 · 天兵×${mob.count}`, 1200);
+    if (!TEST_ACTIONS) spawnWave(waveSizeForStage(stage));
+    showToast(TEST_ACTIONS ? "动作测试 · 无倒计时 · 无天兵" : `第 ${stage} 关 · 天兵×${mob.count}`, 1200);
   }
 
   function updateStageSystem() {
-    if (!running || paused || hero.dead || stageBusy || inShop) return;
+    if (!running || paused || hero.dead || stageBusy || inShop || gameOver) return;
+    if (TEST_ACTIONS) {
+      updateStageHud();
+      return;
+    }
     const now = performance.now();
     if (!stageClock) stageClock = now;
     const dt = Math.min(0.05, (now - stageClock) / 1000);
     stageClock = now;
     stageTimeLeft -= dt;
 
+    const cleared =
+      stageEnemyTotal > 0 &&
+      stageSpawned >= stageEnemyTotal &&
+      livingEnemyCount() === 0;
+
+    if (cleared) {
+      stageBusy = true;
+      updateStageHud();
+      showToast("清敌成功 · 进入宝阁商店", 1100);
+      setTimeout(() => openShop(stage + 1), 700);
+      return;
+    }
+
     if (stageTimeLeft <= 0) {
       stageTimeLeft = 0;
       updateStageHud();
       stageBusy = true;
       clearEnemies();
-      showToast("本关结束 · 进入宝阁商店", 1100);
-      setTimeout(() => openShop(stage + 1), 700);
+      showToast("时间到 · 闯关失败", 1100);
+      setTimeout(() => openGameOver("timeout"), 700);
       return;
     }
 
     updateStageHud();
     if (waveCooldown > 0) waveCooldown -= 1;
-    else if (livingEnemyCount() === 0 && stageSpawned < stageEnemyTotal) {
+    else if (stageSpawned < stageEnemyTotal && livingEnemyCount() < Math.ceil(waveSizeForStage(stage) * 0.5)) {
       spawnWave(waveSizeForStage(stage));
     }
   }
@@ -1247,7 +2510,7 @@
     nextX = plat.x + plat.units * FLOOR_STEP;
   }
 
-  function addCoin(x, y) {
+  function addCoin(x, y, magnet) {
     const el = document.createElement("img");
     el.className = "pickup-coin";
     el.src = coinImgUrl;
@@ -1257,7 +2520,7 @@
     const iy = (y + 0.5) | 0;
     el.style.transform = `translate3d(${ix}px, ${-iy}px, 0)`;
     trackWorld.appendChild(el);
-    coins.push({ x, y, el, got: false });
+    coins.push({ x, y, el, got: false, magnet: !!magnet });
   }
 
   function spawnCoinsOnPlat(plat) {
@@ -1295,6 +2558,53 @@
       boss._hurt = hurt;
       boss.el.classList.toggle("is-hurt", hurt);
     }
+    const air = !boss.onGround;
+    if (boss._air !== air) {
+      boss._air = air;
+      boss.el.classList.toggle("is-air", air);
+    }
+  }
+
+  function tryBossJump(boss) {
+    if (boss.dead || boss.jumpsLeft <= 0 || (boss.jumpCd || 0) > 0) return false;
+    boss.vy = JUMP_V;
+    boss.jumpsLeft -= 1;
+    boss.onGround = false;
+    boss.jumpCd = BOSS_JUMP_COOLDOWN;
+    return true;
+  }
+
+  /** 前方是否空洞（含脚边） */
+  function bossGapDist(e, facing) {
+    const half = e.w * 0.28;
+    for (let d = 2; d <= 64; d += 2) {
+      if (surfaceAt(e.x + facing * (half * 0.35 + d)) == null) return d;
+    }
+    return 0;
+  }
+
+  /** 两点之间水平路径上是否有空洞 */
+  function pathHasGapBetween(x0, x1) {
+    const dir = x1 >= x0 ? 1 : -1;
+    const span = Math.abs(x1 - x0);
+    for (let d = 4; d <= span; d += 6) {
+      if (surfaceAt(x0 + dir * d) == null) return true;
+    }
+    return false;
+  }
+
+  /** 碰到 gap：立刻掉头并退回实心地面，锁定朝向（优先于追击主角） */
+  function turnBossFromGap(e, useChase) {
+    e.facing *= -1;
+    for (let i = 0; i < 12; i++) {
+      const nx = e.x + e.facing * 8;
+      if (surfaceAt(nx) == null) break;
+      e.x = nx;
+    }
+    e.targetX = e.x + e.facing * 220;
+    e.vx = e.facing * (useChase ? BOSS_CHASE : BOSS_MOVE);
+    e.gapLock = 70;
+    e.think = 50;
   }
 
   function pickBossTargetX(boss) {
@@ -1324,13 +2634,33 @@
     img.src = enemyImgUrl;
     img.alt = "天兵";
     img.draggable = false;
+    const weapon = document.createElement("img");
+    weapon.className = "enemy-weapon";
+    weapon.src = enemyWeaponUrl;
+    weapon.alt = "";
+    weapon.draggable = false;
+    const arc = document.createElement("div");
+    arc.className = "enemy-weapon-arc";
+    arc.setAttribute("aria-hidden", "true");
+    const hold = document.createElement("div");
+    hold.className = "enemy-weapon-hold";
+    hold.appendChild(weapon);
+    hold.appendChild(arc);
+    const body = document.createElement("div");
+    body.className = "enemy__body";
+    const flash = document.createElement("img");
+    flash.className = "enemy__flash";
+    flash.src = ENEMY_FLASH_SRC;
+    flash.alt = "";
+    flash.draggable = false;
+    body.appendChild(img);
+    body.appendChild(flash);
+    body.appendChild(hold);
     const hpBar = document.createElement("div");
-    hpBar.className = "boss-hp";
-    if (stage >= 5) hpBar.classList.add("is-thicker");
-    else if (stage >= 3) hpBar.classList.add("is-thick");
+    hpBar.className = "boss-hp is-thicker";
     hpBar.innerHTML = "<i></i>";
     wrap.appendChild(hpBar);
-    wrap.appendChild(img);
+    wrap.appendChild(body);
     trackWorld.appendChild(wrap);
     const boss = {
       x,
@@ -1341,19 +2671,31 @@
       w: 135,
       h: 229,
       el: wrap,
+      spriteEl: img,
+      flashEl: flash,
+      weaponEl: weapon,
+      weaponHoldEl: hold,
+      arcEl: arc,
+      thrustAt: 0,
       hpBar: hpBar.querySelector("i"),
       dead: false,
       hp: maxHp,
       maxHp,
       atk: mob.atk,
       hurtFrames: 0,
+      flashLeft: 0,
+      flashPlaying: false,
       think: 20 + ((Math.random() * 40) | 0),
       targetX: x,
       onGround: true,
+      jumpsLeft: MAX_JUMPS,
+      jumpCd: 20 + ((Math.random() * 30) | 0),
+      gapLock: 0,
       _sx: (x + 0.5) | 0,
       _sy: (y + 0.5) | 0,
       _faceLeft: null,
       _hurt: null,
+      _air: null,
     };
     enemies.push(boss);
     lastBossAt = x;
@@ -1414,11 +2756,51 @@
   }
 
   function arenaMinX() {
-    return ARENA_EDGE_PAD;
+    if (platforms.length) return platforms[0].x + 12;
+    return 12;
   }
 
   function arenaMaxX() {
     return Math.max(arenaMinX() + 80, arenaWidth - ARENA_EDGE_PAD);
+  }
+
+  function resolveEnemySolids(actor, halfW, prevX) {
+    for (let i = 0; i < enemies.length; i++) {
+      const e = enemies[i];
+      if (!e || e.dead) continue;
+      if (Math.abs((e.y || 0) - actor.y) > 56) continue;
+      const eHalf = (e.w || 80) * 0.28;
+      const bodyL = actor.x - halfW;
+      const bodyR = actor.x + halfW;
+      const eL = e.x - eHalf;
+      const eR = e.x + eHalf;
+      if (bodyR <= eL || bodyL >= eR) continue;
+      const prevL = prevX - halfW;
+      const prevR = prevX + halfW;
+      if (prevR <= eL + 0.5 && bodyR > eL) {
+        actor.x = eL - halfW;
+        if (actor.vx > 0) actor.vx = 0;
+      } else if (prevL >= eR - 0.5 && bodyL < eR) {
+        actor.x = eR + eHalf;
+        if (actor.vx < 0) actor.vx = 0;
+      }
+    }
+  }
+
+  function clampHeroToView(actor) {
+    const viewW = viewWidth();
+    const camX = window.SwordCamera ? SwordCamera.followX : runScroll.world;
+    const pad = 12;
+    const lo = Math.max(arenaMinX(), camX + pad);
+    const hi = Math.min(arenaMaxX(), camX + viewW - pad);
+    if (hi <= lo) return;
+    if (actor.x < lo) {
+      actor.x = lo;
+      if (actor.vx < 0) actor.vx = 0;
+    } else if (actor.x > hi) {
+      actor.x = hi;
+      if (actor.vx > 0) actor.vx = 0;
+    }
   }
 
   function clampActorX(actor) {
@@ -1435,9 +2817,27 @@
 
   function generateSegment() {
     if (nextX >= arenaWidth) return;
+    if (FLAT_ARENA) {
+      const h = HEIGHTS[2];
+      const gapAt = arenaWidth * 0.52;
+      const gapW = Math.max(72, Math.min(100, maxSafeGap() * 0.45));
+      if (lastGapAt < 0 && nextX >= gapAt && nextX < arenaWidth - 220) {
+        nextX += gapW;
+        lastGapAt = nextX;
+        return;
+      }
+      let units = 2;
+      const remain = arenaWidth - nextX;
+      if (remain < FLOOR_UNIT_W * 1.2) units = 1;
+      const plat = addPlatform(nextX, units, h);
+      spawnCoinsOnPlat(plat);
+      advanceNextX(plat);
+      return;
+    }
     const roll = Math.random();
     const canOptionalGap =
       !FORCE_ZERO_GAP &&
+      !TEST_ACTIONS &&
       nextX > 220 &&
       nextX < arenaWidth - 220 &&
       nextX - lastGapAt >= MIN_GAP_SPACING;
@@ -1453,7 +2853,11 @@
     const lastVisual = platforms.length
       ? platforms[platforms.length - 1].visualH
       : HEIGHTS[2];
-    const h = platforms.length ? pickNextHeight(lastVisual) : HEIGHTS[2];
+    const h = TEST_ACTIONS
+      ? HEIGHTS[2]
+      : platforms.length
+        ? pickNextHeight(lastVisual)
+        : HEIGHTS[2];
     /* 格斗场略宽一些，方便与 Boss 周旋 */
     let units = Math.random() < 0.55 ? 2 : Math.random() < 0.82 ? 1 : 3;
     /* 末段尽量接到场地右缘 */
@@ -1508,10 +2912,11 @@
       if (prevY < top - MAX_WALK_STEP && nextY < top - MAX_WALK_STEP) continue;
 
       const stayOn = Math.abs(prevY - top) <= 6 && nextY <= top + 16;
+      /* 下落落到台面即可（含跳高台）；步行上台仍由 resolveLedgeWalls 挡住 */
       const crossed =
         prevY >= top - LAND_TOL &&
         nextY <= top + 16 &&
-        prevY >= top - MAX_WALK_STEP;
+        prevY >= nextY;
       if (!stayOn && !crossed) continue;
 
       const dist = Math.abs(top - prevY);
@@ -1549,32 +2954,43 @@
   }
 
   function syncHeroEl() {
-    const sx = ((hero.x - runScroll.world) + 0.5) | 0;
-    const sy = (hero.y + 0.5) | 0;
-    if (hero._sx !== sx || hero._sy !== sy) {
-      hero._sx = sx;
-      hero._sy = sy;
-      runner.style.transform = `translate3d(${sx}px, ${-sy}px, 0)`;
+    const camX = window.SwordCamera ? SwordCamera.getX() : runScroll.world;
+    const lookY = cameraLookY();
+    const sx = ((hero.x - camX) + 0.5) | 0;
+    const sy = ((hero.y - lookY) + 0.5) | 0;
+    const visX = sx;
+    const visY = sy;
+    if (
+      hero._sx !== visX ||
+      hero._sy !== visY ||
+      swordCombo.shakeAmp > 0
+    ) {
+      hero._sx = visX;
+      hero._sy = visY;
+      runner.style.transform = `translate3d(${visX}px, ${-visY}px, 0)`;
     }
     const faceLeft = hero.facing < 0;
     if (hero._faceLeft !== faceLeft) {
       hero._faceLeft = faceLeft;
       runner.classList.toggle("is-facing-left", faceLeft);
     }
-    const moving = Math.abs(hero.vx) > 0.2 && hero.onGround;
+    const moving =
+      (Math.abs(hero.vx) > 0.15 || Math.abs(hero.moveDirY) > 0.001) &&
+      hero.onGround &&
+      !swordCombo.attacking;
     if (hero._moving !== moving) {
       hero._moving = moving;
       runner.classList.toggle("is-moving", moving);
     }
+    syncComboStagePos();
   }
 
   function updateParallax() {
-    const viewW = viewWidth();
-    const shift = viewW * 0.16;
-
-    const place = (el, depthX, depthY) => {
+    /* 背景水平移动距离 = 人物/镜头世界位移的一半；远中近略做层次差 */
+    const cam = runScroll.world;
+    const place = (el, rate, depthY) => {
       if (!el) return;
-      const x = ((-viewFx.x * shift * depthX) * 2 + 0.5) | 0;
+      const x = ((-cam * rate) + 0.5) | 0;
       const y = ((-viewFx.y * depthY) * 2 + 0.5) | 0;
       if (el._px === x && el._py === y) return;
       el._px = x;
@@ -1582,37 +2998,68 @@
       el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
     };
 
-    place(runBackArt, 0.22, 0.18);
-    place(runMidArt, 0.62, 0.45);
-    place(runFrontArt, 1.08, 0.82);
+    place(runBackArt, 0.21, 0.18);
+    place(runMidArt, 0.25, 0.45);
+    place(runFrontArt, 0.29, 0.82);
   }
 
   function updateCamera() {
     const viewW = viewWidth();
-    const maxCam = Math.max(0, arenaWidth - viewW);
-    const focus = Math.min(maxCam, Math.max(0, hero.x - viewW * 0.38));
-    /* 镜头紧跟角色，避免「人动镜慢」造成飘移感 */
-    runScroll.world += (focus - runScroll.world) * 0.48;
-    if (runScroll.world < 0) runScroll.world = 0;
-    if (runScroll.world > maxCam) runScroll.world = maxCam;
+    const now = performance.now();
+    if (!hero._camTickAt) hero._camTickAt = now;
+    const dtSec = Math.min(0.05, Math.max(0, (now - hero._camTickAt) / 1000));
+    hero._camTickAt = now;
 
+    if (window.SwordCamera) {
+      const combo = window.SwordCombat;
+      const comboHop = comboHopping();
+      const comboLand = !!(combo && combo.landing && !comboHop);
+      const normalJump = !hero.onGround && !comboHop;
+      SwordCamera.tick(now, dtSec, {
+        heroX: hero.x,
+        groundY: normalJump ? jumpCamBase() : groundYAt(hero.x),
+        hopY: comboHop ? combo.poseY || 0 : 0,
+        lockGroundY: !!(combo && combo.currentFrame === "16") || normalJump,
+        facing: hero.facing,
+        H: (combo && combo.H) || 140,
+        viewW,
+        arenaW: arenaWidth,
+        dashing: !!(combo && combo.dashing),
+        hopping: comboHop,
+        landing: comboLand && !normalJump,
+        normalJump,
+      });
+      runScroll.world = SwordCamera.followX;
+    } else {
+      const maxCam = Math.max(0, arenaWidth - viewW);
+      const focus = Math.min(maxCam, Math.max(0, hero.x - viewW * 0.38));
+      runScroll.world += (focus - runScroll.world) * 0.48;
+      if (runScroll.world < 0) runScroll.world = 0;
+      if (runScroll.world > maxCam) runScroll.world = maxCam;
+    }
+
+    const maxCam = Math.max(0, arenaWidth - viewW);
     const maxCamSafe = Math.max(1, maxCam);
     const camT = runScroll.world / maxCamSafe;
     const span = Math.max(1, arenaMaxX() - arenaMinX());
     const heroT = Math.min(1, Math.max(0, (hero.x - arenaMinX()) / span));
     const targetX = camT * 0.35 + heroT * 0.65 - 0.5;
-
-    /* 垂直几乎不跟跳，避免整场上下晃 */
     const yBase = 110;
-    const targetY = Math.min(8, Math.max(-4, (hero.y - yBase) * 0.04));
-
+    const targetY =
+      !hero.onGround && !comboHopping()
+        ? 0
+        : Math.min(12, Math.max(-8, (hero.y - yBase) * 0.12));
     viewFx.x += (targetX - viewFx.x) * 0.22;
-    viewFx.y += (targetY - viewFx.y) * 0.08;
+    viewFx.y += (targetY - viewFx.y) * 0.12;
 
-    const camX = (runScroll.world + 0.5) | 0;
-    if (trackWorld._camX !== camX) {
+    const shake = window.SwordCamera ? SwordCamera.getShake() : { x: 0, y: 0 };
+    const lookY = window.SwordCamera ? worldLookY() - shake.y : 0;
+    const camX = ((window.SwordCamera ? SwordCamera.getX() : runScroll.world) + 0.5) | 0;
+    const camY = (lookY + shake.y + 0.5) | 0;
+    if (trackWorld._camX !== camX || trackWorld._camY !== camY) {
       trackWorld._camX = camX;
-      trackWorld.style.transform = `translate3d(${-camX}px, 0, 0)`;
+      trackWorld._camY = camY;
+      trackWorld.style.transform = `translate3d(${-camX}px, ${camY}px, 0)`;
     }
     updateParallax();
   }
@@ -1623,17 +3070,30 @@
     hero.onGround = true;
     hero.dead = false;
     hero.jumpsLeft = MAX_JUMPS;
+    hero.jumpLock = 0;
+    hero.jumpBufferedUntil = 0;
+    hero.coyoteUntil = 0;
+    hero.airGroundY = null;
     hero.swordAnimFrames = 0;
     hero.fanAnimFrames = 0;
     hero.swordReadyAt = 0;
     hero.fanReadyAt = 0;
     hero.hurtFrames = 0;
     hero.facing = 1;
+    endSwordComboAttack();
+    hideComboGif();
+    if (window.SwordCamera) SwordCamera.reset(hero.x, hero.y, viewWidth());
+    resetSwordComboChain();
+    swordCombo.lastAttackAt = 0;
+    swordCombo.hitStopUntil = 0;
+    swordCombo.shakeAmp = 0;
+    swordCombo.shakeUntil = 0;
     runner.classList.remove(
       "is-air",
       "is-attacking",
       "is-attacking-sword",
       "is-attacking-fan",
+      "is-thrusting",
       "is-hurt",
       "is-moving"
     );
@@ -1665,10 +3125,28 @@
   }
 
   function tryJump() {
-    if (!running || paused || hero.dead || hero.jumpsLeft <= 0) return;
+    if (!running || paused || hero.dead) return;
+    const now = performance.now();
+    const grounded = hero.onGround || now < (hero.coyoteUntil || 0);
+    if (selected === "blue" && window.SwordCombat && SwordCombat.isBusy() && grounded) {
+      hero.jumpBufferedUntil = now + 140;
+      return;
+    }
+    if (grounded) hero.jumpsLeft = MAX_JUMPS;
+    if (hero.jumpsLeft <= 0) {
+      hero.jumpBufferedUntil = now + 140;
+      return;
+    }
+    if (hero.airGroundY == null) {
+      const s = surfaceAt(hero.x);
+      hero.airGroundY = s != null ? s : hero.y;
+    }
     hero.vy = JUMP_V;
     hero.jumpsLeft -= 1;
     hero.onGround = false;
+    hero.jumpLock = 16;
+    hero.coyoteUntil = 0;
+    hero.jumpBufferedUntil = 0;
     runner.classList.add("is-air");
     sfxJump();
   }
@@ -1676,18 +3154,459 @@
   function playWeaponAnim(kind) {
     const cls = kind === "fan" ? "is-attacking-fan" : "is-attacking-sword";
     if (kind === "fan") hero.fanAnimFrames = ATTACK_FRAMES;
-    else hero.swordAnimFrames = ATTACK_FRAMES;
-    runner.classList.remove(cls);
+    else hero.swordAnimFrames = kind === "thrust" ? THRUST_FRAMES : ATTACK_FRAMES;
+    runner.classList.remove(cls, "is-thrusting");
     void runner.offsetWidth;
     runner.classList.add("is-attacking", cls);
-    if (kind === "sword") sfxWhoosh();
+    if (kind === "thrust") {
+      runner.classList.add("is-thrusting");
+      sfxEnemySlash();
+    } else if (kind === "sword") sfxWhoosh();
     else sfxAttack();
   }
 
+  function clearSwordComboClasses() {
+    if (!runner) return;
+    runner.classList.remove(
+      "combo-a1",
+      "combo-a2",
+      "combo-a3",
+      "combo-a4",
+      "combo-a5",
+      "combo-a6",
+      "combo-charging",
+      "combo-body-mode",
+      "is-thrusting"
+    );
+    runner.style.removeProperty("--combo-dur");
+    runner.style.removeProperty("--slash-scale");
+    runner.style.removeProperty("--combo-lean");
+  }
+
+  function resetSwordComboChain() {
+    swordCombo.nextStep = 0;
+    swordCombo.buffered = false;
+  }
+
+  function hideSlashVfx() {
+    if (!slashVfxEl) return;
+    slashVfxEl.hidden = true;
+    slashVfxEl.classList.remove("is-show");
+    slashVfxEl.style.backgroundImage = "";
+    swordCombo.slashPoseKey = "";
+  }
+
+  function resolveSlashCfg(poseIdx, step) {
+    if (step && step.slashOverride) return step.slashOverride;
+    const base =
+      (SWORD_COMBO.poseSlash && SWORD_COMBO.poseSlash[poseIdx]) || null;
+    if (!base) return null;
+    if (!step || !step.slashBoost) return base;
+    return {
+      frame: base.frame,
+      rot: step.slashBoost.rot != null ? step.slashBoost.rot : base.rot,
+      scale: (base.scale || 1) * (step.slashBoost.scale || 1),
+      ox: (base.ox || 0) + (step.slashBoost.ox || 0),
+      oy: (base.oy || 0) + (step.slashBoost.oy || 0),
+    };
+  }
+
+  function setArmPoseFrame(frameIndex) {
+    if (!armWeaponEl || !comboArt.poseFrames.length) return;
+    const idx = Math.max(0, Math.min(comboArt.poseFrames.length - 1, frameIndex | 0));
+    const pivot = (SWORD_COMBO.posePivots && SWORD_COMBO.posePivots[idx]) || { x: 0.5, y: 0.5 };
+    const ox = (pivot.x * 100).toFixed(2);
+    const oy = (pivot.y * 100).toFixed(2);
+    const gx = (SWORD_COMBO.gripOffsetPx && SWORD_COMBO.gripOffsetPx.x) || 0;
+    const gy = (SWORD_COMBO.gripOffsetPx && SWORD_COMBO.gripOffsetPx.y) || 0;
+    armWeaponEl.src = comboArt.poseFrames[idx];
+    armWeaponEl.style.transformOrigin = `${ox}% ${oy}%`;
+    /* 握点对准 WeaponSocket，再整体右下偏移 */
+    armWeaponEl.style.transform = `translate(calc(-${ox}% + ${gx}px), calc(-${oy}% + ${gy}px))`;
+    swordCombo.lastPoseFrame = idx;
+  }
+
+  function setArmSocketPose(localX, localY, leanPx) {
+    if (!armSocketEl) return;
+    const base = ANCHOR_BASE.RightHand || { leftPct: 100, bottomPct: 42, ox: -18, oy: -13 };
+    const sx = (base.ox || 0) + ((SWORD_COMBO.socketBase && SWORD_COMBO.socketBase.x) || 0) + (localX || 0);
+    const sy = (base.oy || 0) + ((SWORD_COMBO.socketBase && SWORD_COMBO.socketBase.y) || 0) + (localY || 0);
+    armSocketEl.style.left = `${base.leftPct}%`;
+    armSocketEl.style.bottom = `${base.bottomPct}%`;
+    armSocketEl.style.transform = `translate3d(${sx}px, ${-sy}px, 0)`;
+    if (runner) {
+      runner.style.setProperty("--combo-lean", `${leanPx || 0}px`);
+    }
+  }
+
+  /** 弧光贴合当前姿态剑尖（zuhefangfa：内侧对准剑尖，剑压在弧上） */
+  function showSlashVfx(poseIdx, step) {
+    if (!SWORD_COMBO.showSlashVfx) {
+      hideSlashVfx();
+      return;
+    }
+    if (!slashVfxEl || !comboArt.slashFrames.length) return;
+    const cfg = resolveSlashCfg(poseIdx, step);
+    if (!cfg) {
+      hideSlashVfx();
+      return;
+    }
+    const fi = Math.max(0, Math.min(comboArt.slashFrames.length - 1, cfg.frame | 0));
+    const tip = (SWORD_COMBO.poseTips && SWORD_COMBO.poseTips[poseIdx]) || { x: 0.85, y: 0.45 };
+    const pivot = (SWORD_COMBO.posePivots && SWORD_COMBO.posePivots[poseIdx]) || { x: 0.5, y: 0.5 };
+    const gx = (SWORD_COMBO.gripOffsetPx && SWORD_COMBO.gripOffsetPx.x) || 0;
+    const gy = (SWORD_COMBO.gripOffsetPx && SWORD_COMBO.gripOffsetPx.y) || 0;
+    const dw = (armWeaponEl && armWeaponEl.offsetWidth) || 110;
+    const dh = (armWeaponEl && armWeaponEl.offsetHeight) || 110;
+    const tipX = (tip.x - pivot.x) * dw + gx + (cfg.ox || 0);
+    const tipY = (tip.y - pivot.y) * dh + gy + (cfg.oy || 0);
+    const key = `${poseIdx}:${fi}:${tipX.toFixed(1)}:${tipY.toFixed(1)}:${cfg.rot || 0}:${cfg.scale || 1}`;
+    const durMs = Math.max(
+      160,
+      ((step && step.activeEndMs) || 160) - ((step && step.activeStartMs) || 0) + 40
+    );
+
+    slashVfxEl.style.setProperty("--svfx-x", `${tipX.toFixed(1)}px`);
+    slashVfxEl.style.setProperty("--svfx-y", `${tipY.toFixed(1)}px`);
+    slashVfxEl.style.setProperty("--svfx-rot", `${cfg.rot || 0}deg`);
+    slashVfxEl.style.setProperty("--svfx-scale", String(cfg.scale || 1));
+    slashVfxEl.style.setProperty("--svfx-dur", `${durMs}ms`);
+    slashVfxEl.style.backgroundImage = `url("${comboArt.slashFrames[fi]}")`;
+    slashVfxEl.hidden = false;
+    if (swordCombo.slashPoseKey !== key) {
+      slashVfxEl.classList.remove("is-show");
+      void slashVfxEl.offsetWidth;
+      slashVfxEl.classList.add("is-show");
+      swordCombo.slashPoseKey = key;
+    }
+  }
+
+  function setBlueBodyFrame(frameKey) {
+    if (!runnerSprite || !comboArt.bodyFrames) return;
+    const url =
+      frameKey == null || frameKey === "idle"
+        ? comboArt.bodyIdle
+        : comboArt.bodyFrames[frameKey];
+    if (url) runnerSprite.src = url;
+  }
+
+  function setComboPoseMode(on) {
+    if (!runner) return;
+    runner.classList.toggle("combo-pose-mode", !!on);
+    runner.classList.toggle("combo-body-mode", !!(on && SWORD_COMBO.useBodyFrames));
+    if (SWORD_COMBO.useBodyFrames) {
+      /* 全身帧已含剑与弧光，隐藏手臂层与武器架 */
+      if (armSocketEl) armSocketEl.hidden = true;
+      hideSlashVfx();
+      if (weaponRack) {
+        weaponRack.classList.toggle("is-combo-hidden", !!on);
+        if (on) weaponRack.hidden = true;
+        else if (selected === "blue") weaponRack.hidden = true;
+      }
+      if (!on) setBlueBodyFrame("idle");
+      return;
+    }
+    if (armSocketEl) armSocketEl.hidden = !on;
+    if (weaponRack) {
+      weaponRack.classList.toggle("is-combo-hidden", !!on);
+    }
+    if (!on) {
+      hideSlashVfx();
+      if (armSocketEl) armSocketEl.hidden = true;
+    }
+  }
+
+  function endSwordComboAttack() {
+    swordCombo.attacking = false;
+    swordCombo.stepIndex = -1;
+    swordCombo.stepCfg = null;
+    swordCombo.hitIds = null;
+    swordCombo.nudgeX = 0;
+    swordCombo.slashShown = false;
+    hero.swordAnimFrames = 0;
+    if (comboGif.playing) hideComboGif();
+    else if (!comboGif.done) hideComboGif();
+    clearSwordComboClasses();
+    setComboPoseMode(false);
+    if (runner) {
+      runner.classList.remove(
+        "is-attacking",
+        "is-attacking-sword",
+        "is-thrusting",
+        "combo-body-mode"
+      );
+      runner.style.removeProperty("--combo-lean");
+    }
+  }
+
+  function comboStepDuration(step) {
+    const spd = Math.max(0.35, SWORD_COMBO.attackSpeedMul || 1);
+    return Math.max(80, (step.durationMs || 280) / spd);
+  }
+
+  function easeOutCubic(t) {
+    const u = 1 - Math.min(1, Math.max(0, t));
+    return 1 - u * u * u;
+  }
+
+  function updateComboPoseVisual() {
+    const step = swordCombo.stepCfg;
+    if (!step || !swordCombo.attacking) return;
+    const dur = comboStepDuration(step);
+    const charge = step.chargeMs || 0;
+    let t = 0;
+    if (swordCombo.attackElapsed <= charge) {
+      t = 0;
+      runner.classList.add("combo-charging");
+    } else {
+      runner.classList.remove("combo-charging");
+      t = easeOutCubic((swordCombo.attackElapsed - charge) / Math.max(1, dur - charge));
+    }
+
+    if (SWORD_COMBO.useBodyFrames) {
+      const frames = step.bodyFrames || [];
+      if (frames.length) {
+        const rawT =
+          swordCombo.attackElapsed <= charge
+            ? 0
+            : (swordCombo.attackElapsed - charge) / Math.max(1, dur - charge);
+        const idx =
+          frames.length === 1
+            ? 0
+            : Math.min(frames.length - 1, Math.floor(Math.min(0.999, Math.max(0, rawT)) * frames.length));
+        setBlueBodyFrame(frames[idx]);
+      }
+      if (runner) {
+        runner.style.setProperty("--combo-lean", `${(step.lean || 0) * t}px`);
+      }
+      return;
+    }
+
+    const fromPose =
+      step.poseFrom != null ? step.poseFrom : swordCombo.lastPoseFrame | 0;
+    const toPose = step.poseTo != null ? step.poseTo : step.poseFrame || 0;
+    const poseIdx = t < 0.3 ? fromPose : toPose;
+    setArmPoseFrame(poseIdx);
+
+    const from = step.socketFrom || { x: 0, y: 0 };
+    const to = step.socketTo || { x: 0, y: 0 };
+    const lx = from.x + (to.x - from.x) * t;
+    const ly = from.y + (to.y - from.y) * t;
+    const lean = (step.lean || 0) * t;
+    setArmSocketPose(lx, ly, lean);
+
+    const activeAt = charge + (step.activeStartMs || 0);
+    if (swordCombo.attackElapsed >= activeAt) {
+      const slashCfg = resolveSlashCfg(poseIdx, step);
+      if (slashCfg) {
+        swordCombo.slashShown = true;
+        showSlashVfx(poseIdx, step);
+      } else {
+        hideSlashVfx();
+      }
+    } else {
+      hideSlashVfx();
+    }
+  }
+
+  function beginSwordComboStep(stepIndex) {
+    const steps = SWORD_COMBO.steps;
+    if (!steps || !steps.length) return false;
+    const idx = ((stepIndex % steps.length) + steps.length) % steps.length;
+    const step = steps[idx];
+    const now = performance.now();
+    const dur = comboStepDuration(step);
+
+    swordCombo.attacking = true;
+    swordCombo.stepIndex = idx;
+    swordCombo.stepCfg = step;
+    swordCombo.attackStartedAt = now;
+    swordCombo.attackElapsed = 0;
+    swordCombo.lastTickAt = now;
+    swordCombo.lastAttackAt = now;
+    swordCombo.buffered = false;
+    swordCombo.hitIds = new Set();
+    swordCombo.nudgeX = step.bodyNudgePx || 0;
+    swordCombo.slashShown = false;
+    swordCombo.nextStep = (idx + 1) % steps.length;
+
+    clearSwordComboClasses();
+    runner.classList.add("is-attacking", "is-attacking-sword", `combo-${step.id}`);
+    runner.style.setProperty("--slash-scale", "1");
+    runner.style.setProperty("--combo-dur", `${dur}ms`);
+
+    const frames = Math.max(8, Math.round(dur / 16.67));
+    hero.swordAnimFrames = frames;
+    hero.fanAnimFrames = 0;
+
+    if (comboArt.ready) {
+      setComboPoseMode(true);
+      if (SWORD_COMBO.useBodyFrames) {
+        const bf = step.bodyFrames && step.bodyFrames[0];
+        if (bf != null) setBlueBodyFrame(bf);
+      } else {
+        const fromPose =
+          step.poseFrom != null ? step.poseFrom : swordCombo.lastPoseFrame | 0;
+        setArmPoseFrame(fromPose);
+        const sock = step.socketFrom || { x: 0, y: 0 };
+        setArmSocketPose(sock.x, sock.y, 0);
+      }
+    }
+
+    if (step.motion === "thrust") {
+      runner.classList.add("is-thrusting");
+      sfxEnemySlash();
+    } else if (step.isCrit) {
+      sfxWhoosh();
+      playTone({ freq: 180, dur: 0.08, type: "square", vol: 0.05, slide: 90 });
+    } else {
+      sfxWhoosh();
+    }
+
+    if (step.chargeMs > 0) runner.classList.add("combo-charging");
+
+    const nudge = (step.bodyNudgePx || 0) * hero.facing;
+    if (nudge) {
+      hero.x += nudge;
+      clampActorX(hero);
+    }
+
+    updateComboPoseVisual();
+    return true;
+  }
+
+  function requestSwordCombo() {
+    if (!running || paused || hero.dead || inShop) return false;
+    if (selected === "blue" && window.SwordCombat && SwordCombat.ready) return false;
+    const now = performance.now();
+
+    if (swordCombo.attacking) {
+      const step = swordCombo.stepCfg;
+      const dur = step ? comboStepDuration(step) : 280;
+      const remain = dur - swordCombo.attackElapsed;
+      if (remain <= (SWORD_COMBO.bufferWindowMs || 160) || swordCombo.attackElapsed >= dur * 0.45) {
+        swordCombo.buffered = true;
+      }
+      return true;
+    }
+
+    if (swordCombo.lastAttackAt && now - swordCombo.lastAttackAt > SWORD_COMBO.resetMs) {
+      resetSwordComboChain();
+    }
+
+    return beginSwordComboStep(swordCombo.nextStep);
+  }
+
+  function applyComboHitStop(ms) {
+    if (!ms || ms <= 0) return;
+    const now = performance.now();
+    swordCombo.hitStopUntil = Math.max(swordCombo.hitStopUntil, now + ms);
+  }
+
+  function triggerComboShake(px, ms) {
+    if (!px || px <= 0) return;
+    swordCombo.shakeAmp = px;
+    swordCombo.shakeUntil = performance.now() + (ms || 120);
+  }
+
+  function resolveSwordComboHits() {
+    const step = swordCombo.stepCfg;
+    if (!step || !swordCombo.hitIds) return;
+    const elapsed = swordCombo.attackElapsed;
+    const charge = step.chargeMs || 0;
+    if (elapsed >= charge) runner.classList.remove("combo-charging");
+    if (elapsed < charge + (step.activeStartMs || 0)) return;
+    if (elapsed > charge + (step.activeEndMs || step.durationMs)) return;
+
+    const heroW = runner.offsetWidth || 90;
+    const { ox, oy } = attackOrigin(heroW);
+    const reach = swordReach() * (step.reachMul || 1);
+    const hits = enemiesInArc(ox, oy, hero.facing, reach, step.arc || SWORD_SLASH_ARC);
+    if (!hits.length) return;
+
+    let landed = false;
+    const dmgBase = playerAtk() * (step.damageMul || 1) * (SWORD_COMBO.damageMul || 1);
+    const dmg = step.isCrit
+      ? dmgBase * (SWORD_COMBO.critDamageMul || 1)
+      : dmgBase;
+
+    for (let i = 0; i < hits.length; i++) {
+      const e = hits[i];
+      if (!e || e.dead) continue;
+      const id = e.el || e;
+      if (swordCombo.hitIds.has(id)) continue;
+      swordCombo.hitIds.add(id);
+      hurtBoss(e, dmg, { knockback: step.knockback || 2.4, facing: hero.facing });
+      landed = true;
+    }
+
+    if (landed) {
+      applyComboHitStop(step.hitStopMs || 30);
+      if (step.shakePx) triggerComboShake(step.shakePx, step.isCrit ? 140 : 90);
+    }
+  }
+
+  function updateSwordCombo(now) {
+    if (window.SwordCombat && SwordCombat.ready) return;
+    if (selected !== "blue") return;
+    if (comboGif.playing || comboGif.current || comboGif.done) return;
+
+    if (swordCombo.shakeUntil && now >= swordCombo.shakeUntil) {
+      swordCombo.shakeAmp = 0;
+      swordCombo.shakeUntil = 0;
+    }
+
+    if (!swordCombo.attacking) {
+      if (swordCombo.lastAttackAt && now - swordCombo.lastAttackAt > SWORD_COMBO.resetMs) {
+        resetSwordComboChain();
+      }
+      return;
+    }
+
+    const inHitStop = now < swordCombo.hitStopUntil;
+    if (!swordCombo.lastTickAt) swordCombo.lastTickAt = now;
+    if (!inHitStop) {
+      swordCombo.attackElapsed += now - swordCombo.lastTickAt;
+    }
+    swordCombo.lastTickAt = now;
+
+    const step = swordCombo.stepCfg;
+    const dur = step ? comboStepDuration(step) : 280;
+
+    if (!inHitStop) {
+      updateComboPoseVisual();
+      resolveSwordComboHits();
+    }
+
+    if (swordCombo.attackElapsed >= dur) {
+      const buffered = swordCombo.buffered;
+      const finishedIdx = swordCombo.stepIndex;
+      if (step && step.poseTo != null) swordCombo.lastPoseFrame = step.poseTo;
+      swordCombo.lastAttackAt = now;
+      if (buffered) {
+        swordCombo.attacking = false;
+        swordCombo.stepCfg = null;
+        swordCombo.hitIds = null;
+        swordCombo.slashShown = false;
+        hideSlashVfx();
+        if (finishedIdx >= SWORD_COMBO.steps.length - 1) resetSwordComboChain();
+        beginSwordComboStep(swordCombo.nextStep);
+      } else {
+        endSwordComboAttack();
+        if (finishedIdx >= SWORD_COMBO.steps.length - 1) resetSwordComboChain();
+      }
+    }
+  }
+
   function tickWeaponAnims() {
+    if (selected === "blue" && swordCombo.attacking) {
+      return;
+    }
     if (hero.swordAnimFrames > 0) {
       hero.swordAnimFrames -= 1;
-      if (hero.swordAnimFrames <= 0) runner.classList.remove("is-attacking-sword");
+      if (hero.swordAnimFrames <= 0) {
+        runner.classList.remove("is-attacking-sword", "is-thrusting");
+      }
     }
     if (hero.fanAnimFrames > 0) {
       hero.fanAnimFrames -= 1;
@@ -1698,39 +3617,22 @@
     }
   }
 
-  /** 点击手动攻击：宝剑单体 + 芭蕉扇范围，均不自动 */
+  /** 点击攻击：吕洞宾六段剑连击；钟离权扇子纵向弧 */
   function tryPlayerAttack() {
     if (!running || paused || hero.dead || inShop) return false;
-    if (!hasMeleeVisual()) return false;
+
+    if (selected === "blue") {
+      return requestSwordCombo();
+    }
+
     if (hero.swordAnimFrames > 0 || hero.fanAnimFrames > 0) return false;
 
     const heroW = runner.offsetWidth || 90;
-    let did = false;
-
-    if (hasSword()) {
-      const swordOx = hero.x;
-      const swordOy = hero.y + 46;
-      const hitsL = enemiesInArc(swordOx, swordOy, -1, swordReach());
-      const hitsR = enemiesInArc(swordOx, swordOy, 1, swordReach());
-      const hits = hitsL.concat(hitsR.filter((e) => !hitsL.includes(e)));
-      const target = nearestEnemy(hits, swordOx, swordOy);
-      if (target) {
-        hero.facing = target.x < hero.x ? -1 : 1;
-        hurtBoss(target, playerAtk());
-      }
-      playWeaponAnim("sword");
-      did = true;
-    }
-
-    if (hasFan()) {
-      const { ox, oy } = attackOrigin(heroW);
-      const hits = enemiesInArc(ox, oy, hero.facing, fanReach());
-      for (let i = 0; i < hits.length; i++) hurtBoss(hits[i], playerAtk());
-      playWeaponAnim("fan");
-      did = true;
-    }
-
-    return did;
+    const { ox, oy } = attackOrigin(heroW);
+    const hits = enemiesInArc(ox, oy, hero.facing, fanReach(), FAN_VERT_ARC);
+    for (let i = 0; i < hits.length; i++) hurtBoss(hits[i], playerAtk(), { knockback: 2.2, facing: hero.facing });
+    playWeaponAnim("fan");
+    return true;
   }
 
   function loseLifeAndRespawn(delay = 450) {
@@ -1742,7 +3644,7 @@
     sfxLifeLost();
     if (heroLives <= 0) {
       /* 立刻弹出全屏结算页，不用底部 toast */
-      openGameOver();
+      openGameOver("lives");
       return;
     }
     showToast(`剩余命数 x${heroLives}`, 900);
@@ -1781,19 +3683,78 @@
     }, 360);
   }
 
-  function hurtBoss(boss, amount) {
-    if (boss.dead) return;
-    boss.hp = Math.max(0, boss.hp - amount);
-    if (boss.hurtFrames <= 0) {
-      boss.hurtFrames = BOSS_HURT_FRAMES;
-      boss.vx = -boss.facing * 1.2;
-      sfxHit();
+  const HIT_FLASH_ON_MS = 140;
+  const HIT_FLASH_GAP_MS = 50;
+
+  function setEnemyFlashSprite(boss, on) {
+    if (!boss || !boss.el) return;
+    boss.el.classList.toggle("is-hit-flash", !!on);
+  }
+
+  function playNextEnemyFlash(boss) {
+    const el = boss && boss.el;
+    if (!el || !el.isConnected || (boss.flashLeft || 0) <= 0) {
+      if (boss) {
+        boss.flashPlaying = false;
+        boss.flashLeft = 0;
+        setEnemyFlashSprite(boss, false);
+      }
+      return;
     }
+    boss.flashPlaying = true;
+    boss.flashLeft -= 1;
+    setEnemyFlashSprite(boss, false);
+    void el.offsetWidth;
+    setEnemyFlashSprite(boss, true);
+    if (boss._flashTimer) clearTimeout(boss._flashTimer);
+    boss._flashTimer = setTimeout(() => {
+      setEnemyFlashSprite(boss, false);
+      boss._flashTimer = setTimeout(() => playNextEnemyFlash(boss), HIT_FLASH_GAP_MS);
+    }, HIT_FLASH_ON_MS);
+  }
+
+  function flashEnemyHit(boss) {
+    if (!boss || !boss.el) return;
+    boss.flashLeft = (boss.flashLeft || 0) + 1;
+    if (!boss.flashPlaying) playNextEnemyFlash(boss);
+  }
+
+  function cancelEnemyThrust(boss) {
+    if (!boss) return;
+    if (boss._thrustClear) {
+      clearTimeout(boss._thrustClear);
+      boss._thrustClear = 0;
+    }
+    boss.thrustAt = 0;
+    if (boss.el) boss.el.classList.remove("is-thrusting");
+    if (boss.weaponHoldEl) boss.weaponHoldEl.classList.remove("is-thrusting");
+  }
+
+  function hurtBoss(boss, amount, opts) {
+    if (boss.dead) return;
+    const knock = opts && opts.knockback != null ? opts.knockback : 1.2;
+    const pushDir = (opts && opts.facing != null ? opts.facing : hero.facing || 1) < 0 ? -1 : 1;
+    boss.hp = Math.max(0, boss.hp - amount);
+    boss.hurtFrames = Math.max(BOSS_HURT_FRAMES, 28 + ((knock * 4) | 0));
+    boss.stunnedUntil = performance.now() + 480;
+    boss.hitDir = pushDir;
+    boss.vx = pushDir * (5.2 + knock * 1.4);
+    boss.vy = 0;
+    boss.facing = -pushDir;
+    boss.gapLock = 0;
+    const surface = surfaceAt(boss.x);
+    if (surface != null) {
+      boss.y = surface + ENEMY_Y_NUDGE;
+      boss.onGround = true;
+    }
+    cancelEnemyThrust(boss);
+    flashEnemyHit(boss);
+    sfxHit();
     renderBossHp(boss);
     if (boss.hp <= 0) defeatBoss(boss);
   }
 
-  function applyActorPhysics(actor, halfW, yNudge = 0) {
+  function applyActorPhysics(actor, halfW, yNudge = 0, opts) {
     const prevY = actor.y;
     const prevX = actor.x;
     const wasGrounded = actor.onGround;
@@ -1802,15 +3763,16 @@
     actor.x += actor.vx;
     clampActorX(actor);
 
-    /* 仅贴地步行时挡台阶；跳跃上升不挡，才能跳上去 */
-    if (wasGrounded && actor.vy <= 0) {
+    /* 人物贴地走、Y 跟台面；台阶墙只留给敌人，否则走下一级就回不去左边 */
+    if (wasGrounded && actor.vy <= 0 && !(opts && opts.skipLedges)) {
       resolveLedgeWalls(actor, halfW, yNudge, prevX);
     }
 
     const feetLeft = actor.x - halfW;
     const feetRight = actor.x + halfW;
+    if (actor.jumpLock > 0) actor.jumpLock -= 1;
     actor.onGround = false;
-    if (actor.vy <= 0) {
+    if (actor.vy <= 0 && !(actor.jumpLock > 0)) {
       const surface = findLandingSurface(
         prevY - yNudge,
         actor.y - yNudge,
@@ -1830,21 +3792,81 @@
       const e = enemies[i];
       if (e.dead) continue;
 
-      if (e.hurtFrames > 0) {
-        e.hurtFrames -= 1;
-        e.vx *= 0.86;
+      const dxHero = hero.x - e.x;
+      const dyHero = hero.y - e.y;
+      const distX = Math.abs(dxHero);
+      const aggro =
+        !hero.dead &&
+        running &&
+        !paused &&
+        !inShop &&
+        distX < BOSS_AGGRO_X &&
+        Math.abs(dyHero) < BOSS_AGGRO_Y;
+
+      if (e.gapLock > 0) e.gapLock -= 1;
+      if (e.jumpCd > 0) e.jumpCd -= 1;
+
+      const chaseDir = dxHero < 0 ? -1 : 1;
+      const gapAheadFace = e.onGround ? bossGapDist(e, e.facing) : 0;
+      const gapTowardHero =
+        e.onGround && aggro ? bossGapDist(e, chaseDir) : 0;
+      const heroAcrossGap =
+        aggro && pathHasGapBetween(e.x, hero.x);
+
+      if (e.hurtFrames > 0 || performance.now() < (e.stunnedUntil || 0)) {
+        if (e.hurtFrames > 0) e.hurtFrames -= 1;
+        if (e.hitDir) e.vx = e.hitDir * Math.max(0, Math.abs(e.vx)) * 0.9;
+        else e.vx *= 0.88;
+        if (Math.abs(e.vx) < 0.12) e.vx = 0;
+        applyActorPhysics(e, e.w * 0.28, ENEMY_Y_NUDGE);
+        if (e.onGround) {
+          e.jumpsLeft = MAX_JUMPS;
+          const planted = surfaceAt(e.x);
+          if (planted != null) {
+            e.y = planted + ENEMY_Y_NUDGE;
+            e.vy = 0;
+          }
+        }
+        syncBossEl(e);
+        continue;
+      } else if (e.gapLock > 0) {
+        /* 已因 gap 掉头：持续回撤，追击指令让路 */
+        e.vx = e.facing * BOSS_CHASE;
+        e.targetX = e.x + e.facing * 220;
+      } else if (
+        e.onGround &&
+        ((gapAheadFace > 0 && gapAheadFace <= 56) ||
+          (gapTowardHero > 0 && gapTowardHero <= 72) ||
+          heroAcrossGap)
+      ) {
+        /* 最高优先：前方/追击方向有洞 → 掉头，不靠近主角 */
+        if (gapAheadFace > 0 && gapAheadFace <= 56) {
+          turnBossFromGap(e, true);
+        } else if (e.facing === chaseDir) {
+          turnBossFromGap(e, true);
+        } else {
+          e.vx = e.facing * BOSS_CHASE;
+          e.targetX = e.x + e.facing * 220;
+          e.gapLock = Math.max(e.gapLock, 40);
+        }
+      } else if (aggro) {
+        e.facing = chaseDir;
+        e.think = 6;
+        const needClimb = hero.y > e.y + 8;
+        if (distX > BOSS_ATTACK_GAP || needClimb) {
+          e.targetX = hero.x;
+          e.vx = e.facing * BOSS_CHASE;
+        } else {
+          e.targetX = e.x;
+          e.vx = 0;
+        }
       } else {
         e.think -= 1;
         if (e.think <= 0) {
           const roll = Math.random();
-          if (roll < 0.22) {
+          if (roll < 0.28) {
             e.vx = 0;
             e.think = 25 + ((Math.random() * 35) | 0);
-          } else if (roll < 0.34 && e.onGround) {
-            e.vy = JUMP_V * 0.72;
-            e.onGround = false;
-            e.targetX = pickBossTargetX(e);
-            e.think = 40 + ((Math.random() * 30) | 0);
           } else {
             e.targetX = pickBossTargetX(e);
             e.think = 45 + ((Math.random() * 55) | 0);
@@ -1859,20 +3881,51 @@
         }
       }
 
-      applyActorPhysics(e, e.w * 0.28, ENEMY_Y_NUDGE);
-
-      /* 走到台沿外：掉头；更高台阶：跳上去 */
-      if (e.onGround) {
-        const ahead = e.x + e.facing * 28;
+      /* 前方更高台阶：跳上去（gap 已在上方优先处理） */
+      if (e.onGround && e.hurtFrames <= 0 && e.gapLock <= 0) {
         const here = surfaceAt(e.x);
-        const next = surfaceAt(ahead);
-        if (next == null) {
-          e.facing *= -1;
-          e.targetX = pickBossTargetX(e);
-          e.vx = e.facing * BOSS_MOVE;
-        } else if (here != null && next > here + MAX_WALK_STEP) {
-          e.vy = JUMP_V * 0.85;
-          e.onGround = false;
+        let rise = 0;
+        if (here != null && bossGapDist(e, e.facing) <= 0) {
+          for (let d = 6; d <= 72; d += 6) {
+            const next = surfaceAt(e.x + e.facing * d);
+            if (next == null) break;
+            if (next > here + MAX_WALK_STEP) rise = Math.max(rise, next - here);
+          }
+          for (let i = 0; i < platforms.length; i++) {
+            const p = platforms[i];
+            if (p.h <= here + MAX_WALK_STEP) continue;
+            if (e.facing > 0) {
+              const edge = p.x;
+              if (edge >= e.x - 2 && edge <= e.x + 76) {
+                rise = Math.max(rise, p.h - here);
+              }
+            } else {
+              const edge = p.x + p.w;
+              if (edge <= e.x + 2 && edge >= e.x - 76) {
+                rise = Math.max(rise, p.h - here);
+              }
+            }
+          }
+          if (rise > 0) {
+            tryBossJump(e);
+            if (Math.abs(e.vx) < 0.4) e.vx = e.facing * BOSS_MOVE;
+          }
+        }
+      }
+
+      applyActorPhysics(e, e.w * 0.28, ENEMY_Y_NUDGE);
+      if (e.onGround) e.jumpsLeft = MAX_JUMPS;
+
+      /* 贴地撞上更高立面 → 跳；脚前空洞 → gap 优先掉头 */
+      if (e.onGround && e.hurtFrames <= 0) {
+        const here = surfaceAt(e.x);
+        const nose = e.x + e.facing * (e.w * 0.3 + 4);
+        const next = surfaceAt(nose);
+        if (here != null && next != null && next > here + MAX_WALK_STEP) {
+          tryBossJump(e);
+          e.vx = e.facing * BOSS_CHASE;
+        } else if (here != null && (next == null || bossGapDist(e, e.facing) > 0)) {
+          turnBossFromGap(e, true);
         }
       }
 
@@ -1889,7 +3942,86 @@
     }
   }
 
+  const ENEMY_THRUST_MS = 200;
+
+  function weaponOverlapsHero(enemy) {
+    const weapon = enemy.weaponEl;
+    if (!weapon || !runner) return false;
+    const wr = weapon.getBoundingClientRect();
+    const hr = runner.getBoundingClientRect();
+    if (wr.width < 1 || wr.height < 1) return false;
+    return (
+      wr.right > hr.left &&
+      wr.left < hr.right &&
+      wr.bottom > hr.top &&
+      wr.top < hr.bottom
+    );
+  }
+
+  function weaponTipHitsHero(enemy) {
+    const weapon = enemy.weaponEl;
+    if (!weapon || !runner) return false;
+    const wr = weapon.getBoundingClientRect();
+    const hr = runner.getBoundingClientRect();
+    if (wr.width < 1 || wr.height < 1) return false;
+    const tip = 5;
+    /* 武器本地再镜像后：朝右枪尖在右缘，朝左（身体镜像）枪尖在左缘 */
+    let tipLeft;
+    let tipRight;
+    if (enemy.facing < 0) {
+      tipLeft = wr.left;
+      tipRight = wr.left + tip;
+    } else {
+      tipLeft = wr.right - tip;
+      tipRight = wr.right;
+    }
+    return (
+      tipRight > hr.left &&
+      tipLeft < hr.right &&
+      wr.bottom > hr.top &&
+      wr.top < hr.bottom
+    );
+  }
+
+  function playEnemyThrust(enemy) {
+    const hold = enemy.weaponHoldEl;
+    if (!hold) return;
+    enemy.el.classList.remove("is-thrusting");
+    hold.classList.remove("is-thrusting");
+    void hold.offsetWidth;
+    enemy.el.classList.add("is-thrusting");
+    hold.classList.add("is-thrusting");
+    sfxEnemySlash();
+    if (enemy._thrustClear) clearTimeout(enemy._thrustClear);
+    enemy._thrustClear = setTimeout(() => {
+      enemy.el.classList.remove("is-thrusting");
+      hold.classList.remove("is-thrusting");
+      enemy._thrustClear = 0;
+    }, ENEMY_THRUST_MS);
+  }
+
+  function knifeTouchesEnemy(enemy) {
+    if (selected !== "blue" || !weaponRack || !enemy?.el) return false;
+    /* 仅前刺动作中结算 */
+    if (hero.swordAnimFrames <= 0 || !runner.classList.contains("is-thrusting")) {
+      return false;
+    }
+    const knife = weaponRack.querySelector(".weapon-sprite--sword");
+    if (!knife) return false;
+    const kr = knife.getBoundingClientRect();
+    const er = enemy.el.getBoundingClientRect();
+    if (kr.width < 1 || kr.height < 1 || er.width < 1) return false;
+    return (
+      kr.right > er.left &&
+      kr.left < er.right &&
+      kr.bottom > er.top &&
+      kr.top < er.bottom
+    );
+  }
+
   function updateCombat(heroW) {
+    const now = performance.now();
+    updateSwordCombo(now);
     tickWeaponAnims();
     if (hero.hurtFrames > 0) {
       hero.hurtFrames -= 1;
@@ -1898,36 +4030,37 @@
 
     tryAutoAttacks(heroW);
 
-    const feetCenter = hero.x;
-    const heroLeft = feetCenter - heroW * 0.28;
-    const heroRight = feetCenter + heroW * 0.32;
-    const heroBottom = hero.y;
-    const heroTop = hero.y + 78;
-
+    const frozen =
+      (window.SwordHitstop && SwordHitstop.active()) || now < swordCombo.hitStopUntil;
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
       if (e.dead) continue;
-      const eLeft = e.x - e.w * 0.45;
-      const eRight = e.x + e.w * 0.45;
-      const eBottom = e.y;
-      const eTop = e.y + e.h;
-
-      const vertOk = heroBottom < eTop - 8 && heroTop > eBottom + 8;
-      const bodyHit =
-        vertOk &&
-        eRight > heroLeft &&
-        eLeft < heroRight &&
-        Math.abs((eBottom + eTop) / 2 - (heroBottom + heroTop) / 2) < 70;
-      if (bodyHit) takeDamage(e.atk || bossAtkForStage(stage));
+      if (frozen) continue;
+      if (e.hurtFrames > 0 || performance.now() < (e.stunnedUntil || 0)) continue;
+      if (!weaponOverlapsHero(e)) continue;
+      if (!e.thrustAt || now - e.thrustAt >= ENEMY_THRUST_MS) {
+        e.thrustAt = now;
+        playEnemyThrust(e);
+      }
+      if (weaponTipHitsHero(e)) takeDamage(e.atk || bossAtkForStage(stage));
     }
   }
 
   function collectCoins() {
     const hx = hero.x;
-    const hy = hero.y;
+    const hy = hero.y + 44;
     for (const c of coins) {
       if (c.got) continue;
-      if (Math.abs(c.x - hx) < 48 && Math.abs(c.y - (hy + 44)) < 58) {
+      if (c.magnet) {
+        const dx = hx - c.x;
+        const dy = hy - c.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const step = Math.min(dist, Math.max(18, dist * 0.42));
+        c.x += (dx / dist) * step;
+        c.y += (dy / dist) * step;
+        c.el.style.transform = `translate3d(${(c.x + 0.5) | 0}px, ${-((c.y + 0.5) | 0)}px, 0)`;
+      }
+      if (Math.abs(c.x - hx) < 52 && Math.abs(c.y - hy) < 62) {
         c.got = true;
         c.el.classList.add("is-got");
         coinCount += 1;
@@ -2034,7 +4167,6 @@
     gameOver = false;
     if (gameoverOverlay) gameoverOverlay.hidden = true;
     game.classList.remove("is-gameover");
-    syncPartyHud();
 
     /* 先露出跑道，避免资源处理失败时整关空白 */
     if (runway) {
@@ -2043,6 +4175,7 @@
     }
     game.classList.add("is-running");
     if (runner) runner.classList.add("is-fighting");
+    syncPartyHud();
 
     try {
       await setRunnerSprite(selected);
@@ -2052,20 +4185,24 @@
     await Promise.allSettled([
       prepareCoinArt(),
       prepareEnemyArt(),
+      prepareKnifeArt(),
+      prepareComboArt(),
       prepareFloorArt(),
     ]);
+    showComboIdle();
 
     initTrack();
+    if (window.SwordCamera) SwordCamera.reset(hero.x, hero.y, viewWidth());
     running = true;
     setPaused(false);
     syncHeroEl();
     if (loadingPage && !loadingPage.hidden) await hideLoadingPage();
+    syncPartyHud();
   }
 
   async function startGame() {
     if (started) return;
     started = true;
-    syncPartyHud();
     const name = selected === "red" ? "钟离权" : "吕洞宾";
     startBtn.querySelector(".start-btn__label").textContent = "潜入中…";
     startBtn.disabled = true;
@@ -2088,25 +4225,59 @@
   function tickFight() {
     if (hero.dead || inShop) return;
 
-    if (!paused) {
-      let move = 0;
-      if (keys.a) move -= 1;
-      if (keys.d) move += 1;
-      hero.vx = move * playerMoveSpeed();
-      if (move !== 0) hero.facing = move;
+    const now = performance.now();
+    const swordBusy = selected === "blue" && window.SwordCombat && SwordCombat.isBusy();
+    if (!hero._fightTickAt) hero._fightTickAt = now;
+    const dtMs = Math.min(48, Math.max(0, now - hero._fightTickAt));
+    hero._fightTickAt = now;
 
-      /* S：贴地时略下蹲减速，便于近战走位 */
-      const speedScale = keys.s && hero.onGround ? 0.55 : 1;
-      hero.vx *= speedScale;
+    if (window.SwordHitstop) SwordHitstop.tick(dtMs, paused);
+    if (window.SwordCombat && SwordCombat.ready && selected === "blue") {
+      SwordCombat.tick(now, dtMs, paused);
+    }
+    const frozen =
+      (window.SwordHitstop && SwordHitstop.active()) || now < swordCombo.hitStopUntil;
 
-      applyActorPhysics(hero, (runner.offsetWidth || 90) * 0.42);
-      if (hero.onGround) hero.jumpsLeft = MAX_JUMPS;
+    if (!paused && !frozen) {
+      if (!swordBusy) {
+        const { ix, iy, moving } = readMoveIntent();
+        const speed = playerMoveSpeed();
+        hero.moveDirX = moving ? ix : 0;
+        hero.moveDirY = moving ? iy : 0;
+        hero.vx = ix * speed;
+        hero.sprinting = tapDashActive();
+        if (keys.a && !keys.d) hero.facing = -1;
+        else if (keys.d && !keys.a) hero.facing = 1;
 
-      if (hero.onGround) runner.classList.remove("is-air");
-      else runner.classList.add("is-air");
+        applyActorPhysics(hero, (runner.offsetWidth || 90) * 0.42, 0, { skipLedges: true });
+        snapHeroToGround();
 
+        hero.x = Math.round(hero.x);
+        if (hero.onGround) hero.y = groundYAt(hero.x);
+      } else if (!hero.onGround) {
+        hero.vx = 0;
+        applyActorPhysics(hero, (runner.offsetWidth || 90) * 0.42, 0, { skipLedges: true });
+        snapHeroToGround();
+      } else {
+        snapHeroToGround();
+      }
+
+      if (hero.onGround && hero.jumpLock <= 0) {
+        hero.jumpsLeft = MAX_JUMPS;
+        hero.airGroundY = null;
+        hero.coyoteUntil = performance.now() + 90;
+        runner.classList.remove("is-air");
+        if (performance.now() < (hero.jumpBufferedUntil || 0)) tryJump();
+      } else if (!hero.onGround) {
+        if (hero.airGroundY == null) hero.airGroundY = jumpCamBase();
+        runner.classList.add("is-air");
+      }
+
+      updateFootWalk(dtMs);
       updateBosses();
       updateStageSystem();
+    } else if (!paused) {
+      updateFootWalk(dtMs);
     }
 
     updateCamera();
@@ -2156,9 +4327,11 @@
       mouse.ty = 0.5;
       cursor.classList.remove("is-on");
     });
-    window.addEventListener("pointerdown", () => {
+    window.addEventListener("pointerdown", (e) => {
       cursor.classList.add("is-press");
       ensureAudio();
+      if (window.SwordAudio) SwordAudio.unlock();
+      if (selected === "blue" && window.SwordInput) SwordInput.pointerDown(e);
     });
     window.addEventListener("pointerup", () => cursor.classList.remove("is-press"));
 
@@ -2180,6 +4353,7 @@
       ) {
         return;
       }
+      if (selected === "blue") return;
       tryPlayerAttack();
     });
 
@@ -2213,8 +4387,10 @@
       ensureAudio();
       const moveKey = keyMap[e.code];
       if (moveKey && !inShop) {
+        const wasDown = keys[moveKey];
         keys[moveKey] = true;
         if (running) e.preventDefault();
+        if (running && !wasDown && !e.repeat) noteMoveTap(moveKey, performance.now());
       }
       if (e.code === "KeyP" || e.code === "Escape") {
         if (inShop) {
@@ -2226,6 +4402,11 @@
           e.preventDefault();
           togglePause();
         }
+        return;
+      }
+      if (e.code === "F9") {
+        e.preventDefault();
+        toggleWeaponSlotDebug();
         return;
       }
       if (inShop) {
@@ -2249,7 +4430,7 @@
         if (running) {
           e.preventDefault();
           if (!e.repeat) tryJump();
-        } else if (e.code === "Space" || e.code === "Enter") {
+        } else if (e.code === "Space") {
           e.preventDefault();
           startGame();
         }
@@ -2264,10 +4445,17 @@
     });
     window.addEventListener("keyup", (e) => {
       const moveKey = keyMap[e.code];
-      if (moveKey) keys[moveKey] = false;
+      if (moveKey) {
+        keys[moveKey] = false;
+        if (moveKey === "a" && tapDash.dir < 0) tapDash.dir = 0;
+        if (moveKey === "d" && tapDash.dir > 0) tapDash.dir = 0;
+      }
     });
     window.addEventListener("blur", () => {
       keys.w = keys.a = keys.s = keys.d = false;
+      tapDash.dir = 0;
+      tapDash.lastKey = "";
+      if (window.SwordInput) SwordInput.blur();
     });
   }
 
@@ -2277,6 +4465,22 @@
       requestAnimationFrame(tick);
       drawCoinCount("x000");
       syncPartyHud();
+
+      if (SKIP_TO_SHOP) {
+        forceShowGame();
+        if (runway) {
+          runway.hidden = false;
+          runway.removeAttribute("hidden");
+        }
+        game.classList.add("is-running");
+        started = true;
+        running = true;
+        coinCount = 99;
+        drawCoinCount(formatCoins(coinCount));
+        grantStartingLoadout();
+        openShop(2);
+        return;
+      }
 
       if (SKIP_INTRO) {
         forceShowGame();

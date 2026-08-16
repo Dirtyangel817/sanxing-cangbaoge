@@ -147,7 +147,7 @@ img, canvas {
 .stage-timer[hidden] { display: none !important; }
 .stage-timer__label {
   font-family: "Press Start 2P", monospace;
-  font-size: clamp(9px, 1.6vw, 12px);
+  font-size: clamp(18px, 3.2vw, 24px);
   color: #e8d8a8;
   letter-spacing: 0.12em;
 }
@@ -657,31 +657,126 @@ img, canvas {
   image-rendering: crisp-edges;
   transform-origin: 50% 100%;
 }
-.enemy.is-facing-left .enemy__sprite {
+.enemy__body {
+  position: relative;
+  width: 100%;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+.enemy.is-facing-left .enemy__body {
   transform: scaleX(-1);
 }
+.enemy-weapon-hold {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: clamp(154px, 22.4vw, 205px);
+  height: auto;
+  z-index: 3;
+  pointer-events: none;
+  /* 握持位 + 朝向前移；前刺时整体带着前端弧光一起动 */
+  transform: translate(calc(-50% + 30px), calc(-50% + 35px));
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+.enemy-weapon-hold.is-thrusting {
+  animation: enemy-wuqi-thrust 0.2s ease-out both;
+}
+.enemy-weapon {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  transform: scaleX(-1);
+  transform-origin: 50% 50%;
+  filter: drop-shadow(1px 1px 0 #0008);
+}
+.enemy-weapon-arc {
+  --slash-r: 72px;
+  position: absolute;
+  /* 贴在武器盒最右像素外侧一点点 */
+  left: auto;
+  right: 0;
+  top: 42%;
+  width: var(--slash-r);
+  height: var(--slash-r);
+  margin-right: calc(var(--slash-r) * -0.92);
+  margin-left: 0;
+  margin-top: calc(var(--slash-r) * -0.5);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 4;
+  filter: drop-shadow(0 0 8px #9fd0ffcc);
+  -webkit-mask-image: radial-gradient(
+    circle at 22% 50%,
+    transparent 0 12%,
+    #000 18% 70%,
+    transparent 84%
+  );
+  mask-image: radial-gradient(
+    circle at 22% 50%,
+    transparent 0 12%,
+    #000 18% 70%,
+    transparent 84%
+  );
+  background: conic-gradient(
+    from 210deg at 22% 50%,
+    transparent 0deg 3deg,
+    #ffffff 3deg 12deg,
+    #e8f2ffee 12deg 38deg,
+    #9fd0ffaa 38deg 68deg,
+    #6ad8ec88 68deg 92deg,
+    transparent 92deg 360deg
+  );
+}
+.enemy-weapon-hold.is-thrusting .enemy-weapon-arc {
+  animation: enemy-arc-flash 0.2s ease-out both;
+}
 .enemy.is-hurt .enemy__sprite {
-  filter: saturate(0.25) brightness(1.45);
-  animation: hurt-flash 0.1s steps(2, end) infinite;
+  filter: saturate(0.35) brightness(1.15);
+}
+.enemy.is-hurt .enemy-weapon {
+  filter: saturate(0.35) brightness(1.15) drop-shadow(1px 1px 0 #0008);
+}
+.enemy__flash {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: auto;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 6;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+.enemy.is-hit-flash .enemy__flash {
+  opacity: 1;
+}
+.enemy.is-hit-flash .enemy__sprite {
+  opacity: 0;
+  filter: none !important;
+}
+.enemy.is-hit-flash .enemy-weapon-hold {
+  opacity: 0;
 }
 .boss-hp {
   position: absolute;
-  left: 18%;
-  right: 18%;
-  top: -14px;
-  height: 8px;
+  left: 14%;
+  right: 14%;
+  top: -20px;
+  height: 14px;
   border: 2px solid #1a1028;
   background: #2a1838;
   box-shadow: 1px 1px 0 #0008;
   overflow: hidden;
 }
-.boss-hp.is-thick {
-  height: 12px;
-  top: -18px;
-}
+.boss-hp.is-thick,
 .boss-hp.is-thicker {
-  height: 16px;
-  top: -22px;
+  height: 14px;
+  top: -20px;
 }
 .boss-hp i {
   display: block;
@@ -709,6 +804,60 @@ img, canvas {
 .runner.is-facing-left .runner__sprite {
   transform: scaleX(-1);
 }
+.runner__body {
+  position: relative;
+  width: 100%;
+  transform-origin: 50% 50%;
+}
+.player-feet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.player-foot {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  transform: translate(0px, 0px);
+  will-change: transform;
+  pointer-events: none;
+  user-select: none;
+}
+.player-foot--left { z-index: 1; }
+.player-foot--right { z-index: 2; }
+.runner.has-foot-walk .runner__sprite,
+.runner.has-foot-walk.is-moving:not(.is-air) .runner__sprite,
+.runner.has-foot-walk.is-facing-left.is-moving:not(.is-air) .runner__sprite,
+.runner.has-foot-walk.is-knife-hero.is-facing-left.is-moving:not(.is-air) .runner__sprite {
+  /* Body 不做上下浮动 */
+  animation: none !important;
+}
+.runner.combo-body-mode .player-feet {
+  display: none;
+}
+/* 钟离权 / 吕洞宾：人物+武器整体镜像 */
+.runner.is-fan-hero .runner__body,
+.runner.is-knife-hero .runner__body {
+  will-change: transform;
+}
+.runner.is-fan-hero.is-facing-left .runner__body,
+.runner.is-knife-hero.is-facing-left .runner__body {
+  transform: scaleX(-1);
+}
+.runner.is-fan-hero.is-facing-left .runner__sprite,
+.runner.is-knife-hero.is-facing-left .runner__sprite {
+  transform: none;
+}
 .runner.is-facing-left.is-attacking .runner__sprite {
   animation: fan-pose-left 0.28s ease-out both !important;
 }
@@ -716,6 +865,17 @@ img, canvas {
 .runner.has-sword.is-facing-left.is-attacking .runner__sprite,
 .runner.has-fan.is-facing-left.is-attacking .runner__sprite {
   animation: sword-pose-left 0.38s ease-out both !important;
+}
+/* 整体翻转后用正向攻击动画，避免二次镜像 */
+.runner.is-fan-hero.is-facing-left.is-attacking .runner__sprite,
+.runner.is-knife-hero.is-facing-left.is-attacking .runner__sprite {
+  animation: fan-pose 0.28s ease-out both !important;
+}
+.runner.is-fan-hero.has-melee.is-facing-left.is-attacking .runner__sprite,
+.runner.is-fan-hero.has-fan.is-facing-left.is-attacking .runner__sprite,
+.runner.is-knife-hero.has-melee.is-facing-left.is-attacking .runner__sprite,
+.runner.is-knife-hero.has-sword.is-facing-left.is-attacking .runner__sprite {
+  animation: sword-pose 0.38s ease-out both !important;
 }
 .runner.is-facing-left .fan-arc {
   left: auto;
@@ -743,12 +903,150 @@ img, canvas {
   pointer-events: none;
 }
 .weapon-rack[hidden] { display: none !important; }
+
+/* 通用 Weapon Slot（6 槽，跟随 runner__body，转向时随身体镜像） */
+.wslot {
+  position: absolute;
+  left: 50%;
+  bottom: 50%;
+  width: 0;
+  height: 0;
+  transform: translate3d(var(--wx, 0px), var(--wy, 0px), 0)
+    rotate(var(--wrot, 0deg))
+    scale(var(--wscale, 1));
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+.wslot .weapon-arm {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.wslot .weapon-sprite--wheel {
+  width: clamp(28px, 4vw, 40px);
+  left: -14px;
+  bottom: -8px;
+  transform: rotate(0deg);
+  transform-origin: 50% 50%;
+}
+.wslot__marker {
+  position: absolute;
+  left: -7px;
+  bottom: -7px;
+  width: 14px;
+  height: 14px;
+  border: 1px solid #fff;
+  border-radius: 2px;
+  background: #ff3b6acc;
+  color: #fff;
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
+  line-height: 14px;
+  text-align: center;
+  text-shadow: 1px 1px 0 #000;
+  box-shadow: 0 0 0 1px #0008;
+  z-index: 40;
+  pointer-events: none;
+}
+.wslot[data-anchor="LeftHand"] .wslot__marker { background: #3b8cffcc; }
+.wslot[data-anchor="RightHand"] .wslot__marker { background: #ff3b6acc; }
+.wslot[data-anchor="Feet"] .wslot__marker { background: #3bff7acc; }
+.weapon-rack.is-debug .wslot__marker { display: block; }
+.wslot__marker[hidden] { display: none !important; }
+
 .runner.has-melee.is-facing-left .weapon-rack {
   transform: scaleX(-1);
   transform-origin: 50% 50%;
 }
+/* 钟离权 / 吕洞宾武器架随身体整体翻转，不再单独翻 */
+.runner.is-fan-hero.has-melee.is-facing-left .weapon-rack,
+.runner.is-knife-hero.has-melee.is-facing-left .weapon-rack {
+  transform: none;
+}
 .runner.has-melee .fan-arc {
   display: none !important;
+}
+
+/* ArmSocket + 手剑一体姿态（连招） */
+.arm-socket {
+  position: absolute;
+  left: 100%;
+  bottom: 42%;
+  width: 0;
+  height: 0;
+  z-index: 14;
+  pointer-events: none;
+  transform: translate3d(-18px, 13px, 0);
+}
+.arm-socket[hidden] { display: none !important; }
+.arm-weapon {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: clamp(55px, 8.4vw, 77px);
+  height: auto;
+  z-index: 2;
+  transform: translate(-50%, -50%);
+  transform-origin: 50% 50%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: drop-shadow(1px 1px 0 #0008);
+  pointer-events: none;
+}
+.slash-vfx {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: clamp(64px, 10vw, 100px);
+  height: clamp(64px, 10vw, 100px);
+  margin-left: calc(var(--svfx-size, 82px) * -0.5);
+  margin-top: calc(var(--svfx-size, 82px) * -0.5);
+  z-index: 1;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  opacity: 0;
+  /* 剑尖锁定：平移到 tip，再旋转/缩放；原点在弧内侧中心 */
+  transform: translate3d(var(--svfx-x, 40px), var(--svfx-y, 0px), 0)
+    rotate(var(--svfx-rot, 0deg))
+    scale(var(--svfx-scale, 1));
+  transform-origin: 35% 50%;
+}
+.slash-vfx[hidden] { display: none !important; }
+.slash-vfx.is-show {
+  display: block;
+  animation: slash-vfx-hold var(--svfx-dur, 0.28s) steps(3, end) both;
+}
+@keyframes slash-vfx-hold {
+  0%   { opacity: 0; filter: brightness(1.35); }
+  12%  { opacity: 1; filter: brightness(1.12); }
+  72%  { opacity: 1; filter: brightness(1); }
+  100% { opacity: 0; filter: brightness(1); }
+}
+.runner.combo-pose-mode .weapon-rack.is-combo-hidden .weapon-sprite,
+.runner.combo-pose-mode .weapon-rack.is-combo-hidden .weapon-arc {
+  opacity: 0 !important;
+}
+.runner.combo-pose-mode .runner__sprite {
+  transform: translateX(var(--combo-lean, 0px));
+}
+.runner.is-knife-hero.is-facing-left.combo-pose-mode .runner__sprite {
+  transform: none;
+}
+.runner.combo-charging .arm-weapon {
+  filter: brightness(1.2) drop-shadow(0 0 6px #ffe56a88);
+}
+.runner.combo-pose-mode.is-attacking-sword .weapon-arm--sword,
+.runner.combo-pose-mode.is-attacking-sword .weapon-sprite--sword,
+.runner.combo-pose-mode.is-attacking-sword .weapon-arc--sword {
+  animation: none !important;
 }
 
 .weapon-slot {
@@ -764,6 +1062,10 @@ img, canvas {
 .weapon-slot--fan {
   left: 78%;
   bottom: 30%;
+}
+/* 往左时扇子再左移：朝右基准右移，整体镜像后即为世界向左（8+5=13px） */
+.runner.is-fan-hero .weapon-slot--fan {
+  left: calc(78% + 13px);
 }
 
 .weapon-arm {
@@ -789,11 +1091,23 @@ img, canvas {
   image-rendering: crisp-edges;
 }
 .weapon-sprite--sword {
-  width: clamp(78px, 10vw, 106px);
+  width: clamp(52px, 7vw, 72px);
   transform: rotate(-15deg);
 }
+/* 吕洞宾宝剑：挂点 + 挥砍用握柄轴心 */
+.runner.is-knife-hero .weapon-slot--sword {
+  left: calc(100% - 18px);
+  bottom: calc(42% - 13px);
+}
+.runner.is-knife-hero .weapon-sprite--sword {
+  width: clamp(52px, 7vw, 72px);
+  left: -6px;
+  bottom: -10px;
+  transform: rotate(-15deg);
+  transform-origin: 14% 86%;
+}
 .weapon-sprite--fan {
-  width: clamp(86px, 11vw, 118px);
+  width: clamp(25px, 3.15vw, 34px);
   left: -8px;
   bottom: -14px;
   transform-origin: 12% 88%;
@@ -801,7 +1115,7 @@ img, canvas {
 }
 
 .weapon-arc {
-  --slash-r: 180px;
+  --slash-r: 96px;
   position: absolute;
   left: calc(var(--slash-r) * -0.22);
   top: calc(var(--slash-r) * -0.78);
@@ -823,27 +1137,57 @@ img, canvas {
     transparent 82%
   );
 }
+/* 吕洞宾小刀：横向弧光 */
 .weapon-arc--sword {
+  --slash-r: 100px;
+  left: calc(var(--slash-r) * -0.08);
+  top: calc(var(--slash-r) * -0.55);
+  -webkit-mask-image: radial-gradient(
+    circle at 18% 55%,
+    transparent 0 14%,
+    #000 20% 72%,
+    transparent 84%
+  );
+  mask-image: radial-gradient(
+    circle at 18% 55%,
+    transparent 0 14%,
+    #000 20% 72%,
+    transparent 84%
+  );
   background: conic-gradient(
-    from 170deg at 22% 78%,
-    transparent 0deg 3deg,
-    #ffffff 3deg 10deg,
-    #e8f2ffee 10deg 42deg,
-    #9fd0ffaa 42deg 78deg,
-    #6ab0ff44 78deg 110deg,
-    transparent 110deg 360deg
+    from 200deg at 18% 55%,
+    transparent 0deg 4deg,
+    #ffffff 4deg 14deg,
+    #e8f2ffee 14deg 48deg,
+    #9fd0ffaa 48deg 78deg,
+    transparent 78deg 360deg
   );
 }
+/* 钟离权扇子：纵向弧光 */
 .weapon-arc--fan {
-  --slash-r: 200px;
+  --slash-r: 110px;
+  left: calc(var(--slash-r) * -0.35);
+  top: calc(var(--slash-r) * -0.88);
+  -webkit-mask-image: radial-gradient(
+    circle at 50% 88%,
+    transparent 0 12%,
+    #000 18% 74%,
+    transparent 86%
+  );
+  mask-image: radial-gradient(
+    circle at 50% 88%,
+    transparent 0 12%,
+    #000 18% 74%,
+    transparent 86%
+  );
   background: conic-gradient(
-    from 165deg at 20% 80%,
+    from 250deg at 50% 88%,
     transparent 0deg 2deg,
-    #fff6c8 2deg 12deg,
-    #ffe56acc 12deg 36deg,
-    #6ad8ecaa 36deg 70deg,
-    #c9a0ff66 70deg 105deg,
-    transparent 105deg 360deg
+    #fff6c8 2deg 16deg,
+    #ffe56acc 16deg 42deg,
+    #6ad8ecaa 42deg 78deg,
+    #c9a0ff66 78deg 110deg,
+    transparent 110deg 360deg
   );
   filter: drop-shadow(0 0 8px #ffe56a88);
 }
@@ -859,6 +1203,156 @@ img, canvas {
 .runner.is-attacking-sword .weapon-arc--sword {
   animation: sword-arc-flash 0.22s ease-out both;
   animation-delay: var(--stack-delay, 0s);
+}
+
+/* —— 吕洞宾四段剑连击（角度 / 剑光 placeholder）—— */
+.runner.combo-a1.is-attacking-sword .weapon-arm--sword,
+.runner.combo-a2.is-attacking-sword .weapon-arm--sword,
+.runner.combo-a3.is-attacking-sword .weapon-arm--sword,
+.runner.combo-a4.is-attacking-sword .weapon-arm--sword {
+  animation-delay: 0s;
+}
+.runner.combo-a1.is-attacking-sword .weapon-arm--sword {
+  animation: combo-a1-arm var(--combo-dur, 0.28s) cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.runner.combo-a1.is-attacking-sword .weapon-sprite--sword {
+  animation: combo-a1-blade var(--combo-dur, 0.28s) cubic-bezier(0.15, 0.75, 0.2, 1) both;
+}
+.runner.combo-a1.is-attacking-sword .weapon-arc--sword {
+  --slash-r: calc(96px * var(--slash-scale, 1));
+  animation: combo-slash-flash 0.2s ease-out both;
+}
+
+.runner.combo-a2.is-attacking-sword .weapon-arm--sword {
+  animation: combo-a2-arm var(--combo-dur, 0.28s) cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.runner.combo-a2.is-attacking-sword .weapon-sprite--sword {
+  animation: combo-a2-blade var(--combo-dur, 0.28s) cubic-bezier(0.15, 0.75, 0.2, 1) both;
+}
+.runner.combo-a2.is-attacking-sword .weapon-arc--sword {
+  --slash-r: calc(100px * var(--slash-scale, 1.05));
+  animation: combo-slash-flash 0.2s ease-out both;
+}
+
+.runner.combo-a3.is-attacking-sword .weapon-arm--sword {
+  animation: combo-a3-arm var(--combo-dur, 0.26s) ease-out both;
+}
+.runner.combo-a3.is-attacking-sword .weapon-sprite--sword {
+  animation: none;
+  transform: rotate(0deg);
+}
+.runner.combo-a3.is-attacking-sword .weapon-arc--sword {
+  --slash-r: calc(88px * var(--slash-scale, 0.85));
+  animation: combo-thrust-flash 0.18s ease-out both;
+}
+
+.runner.combo-a4.is-attacking-sword .weapon-arm--sword {
+  animation: combo-a4-arm var(--combo-dur, 0.4s) cubic-bezier(0.18, 0.55, 0.2, 1) both;
+}
+.runner.combo-a4.is-attacking-sword .weapon-sprite--sword {
+  animation: combo-a4-blade var(--combo-dur, 0.4s) cubic-bezier(0.12, 0.7, 0.2, 1) both;
+}
+.runner.combo-a4.is-attacking-sword .weapon-arc--sword {
+  --slash-r: calc(128px * var(--slash-scale, 1.85));
+  filter: drop-shadow(0 0 12px #fff6c8ee) drop-shadow(0 0 6px #ffe56acc);
+  animation: combo-a4-flash 0.28s ease-out both;
+  animation-delay: 0.08s;
+}
+.runner.combo-charging .weapon-sprite--sword {
+  filter: brightness(1.25) drop-shadow(0 0 6px #ffe56a88);
+}
+.runner.combo-a1.is-attacking .runner__body,
+.runner.combo-a2.is-attacking .runner__body,
+.runner.combo-a3.is-attacking .runner__body,
+.runner.combo-a4.is-attacking .runner__body {
+  animation: combo-body-nudge var(--combo-dur, 0.28s) ease-out both;
+}
+
+@keyframes combo-a1-arm {
+  0%   { transform: translate3d(0, -6px, 0) rotate(-28deg); }
+  40%  { transform: translate3d(16px, 4px, 0) rotate(18deg); }
+  100% { transform: translate3d(6px, 10px, 0) rotate(36deg); }
+}
+@keyframes combo-a1-blade {
+  0%   { transform: rotate(-55deg); }
+  45%  { transform: rotate(40deg); }
+  100% { transform: rotate(70deg); }
+}
+@keyframes combo-a2-arm {
+  0%   { transform: translate3d(4px, 10px, 0) rotate(32deg); }
+  40%  { transform: translate3d(14px, -8px, 0) rotate(-10deg); }
+  100% { transform: translate3d(6px, -12px, 0) rotate(-38deg); }
+}
+@keyframes combo-a2-blade {
+  0%   { transform: rotate(60deg); }
+  45%  { transform: rotate(-20deg); }
+  100% { transform: rotate(-70deg); }
+}
+@keyframes combo-a3-arm {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  40%      { transform: translate3d(14px, 0, 0) rotate(0deg); }
+}
+@keyframes combo-a4-arm {
+  0%   { transform: translate3d(-1px, -1px, 0) rotate(-3deg); }
+  22%  { transform: translate3d(0px, -2px, 0) rotate(-12deg); }
+  48%  { transform: translate3d(22px, 2px, 0) rotate(28deg); }
+  100% { transform: translate3d(10px, 8px, 0) rotate(18deg); }
+}
+@keyframes combo-a4-blade {
+  0%   { transform: rotate(-8deg); }
+  22%  { transform: rotate(-21deg); }
+  52%  { transform: rotate(75deg); }
+  100% { transform: rotate(25deg); }
+}
+@keyframes combo-slash-flash {
+  0%   { opacity: 0; transform: scale(0.7) skewX(-8deg); }
+  25%  { opacity: 1; transform: scale(1.05) skewX(-2deg); }
+  100% { opacity: 0; transform: scale(1.2) skewX(6deg); }
+}
+@keyframes combo-thrust-flash {
+  0%   { opacity: 0; transform: scale(0.6); }
+  30%  { opacity: 0.95; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.25); }
+}
+@keyframes combo-a4-flash {
+  0%   { opacity: 0; transform: scale(0.75) skewX(-12deg); }
+  20%  { opacity: 1; transform: scale(1.1) skewX(-4deg); }
+  70%  { opacity: 0.85; transform: scale(1.35) skewX(6deg); }
+  100% { opacity: 0; transform: scale(1.45) skewX(10deg); }
+}
+@keyframes combo-body-nudge {
+  0%   { transform: translateX(0); }
+  35%  { transform: translateX(3px); }
+  100% { transform: translateX(1px); }
+}
+.runner.is-facing-left.combo-a1.is-attacking .runner__body,
+.runner.is-facing-left.combo-a2.is-attacking .runner__body,
+.runner.is-facing-left.combo-a3.is-attacking .runner__body,
+.runner.is-facing-left.combo-a4.is-attacking .runner__body,
+.runner.is-knife-hero.is-facing-left.combo-a1.is-attacking .runner__body,
+.runner.is-knife-hero.is-facing-left.combo-a2.is-attacking .runner__body,
+.runner.is-knife-hero.is-facing-left.combo-a3.is-attacking .runner__body,
+.runner.is-knife-hero.is-facing-left.combo-a4.is-attacking .runner__body {
+  animation-name: combo-body-nudge-left;
+}
+@keyframes combo-body-nudge-left {
+  0%   { transform: scaleX(-1) translateX(0); }
+  35%  { transform: scaleX(-1) translateX(3px); }
+  100% { transform: scaleX(-1) translateX(1px); }
+}
+
+/* 非连招前刺（旧）；连招 A3 用 combo-a3-arm */
+.runner.is-knife-hero.is-thrusting:not(.combo-a3) .weapon-arm--sword {
+  animation: knife-thrust 0.2s ease-out both;
+  animation-delay: 0s;
+}
+.runner.is-knife-hero.is-thrusting:not(.combo-a3) .weapon-sprite--sword {
+  animation: none;
+  transform: rotate(0deg);
+}
+.runner.is-knife-hero.is-thrusting:not(.combo-a3) .weapon-arc--sword {
+  animation: enemy-arc-flash 0.2s ease-out both;
+  animation-delay: 0s;
 }
 .runner.is-attacking-fan .weapon-arm--fan {
   animation: fan-arm-slash 0.38s cubic-bezier(0.18, 0.55, 0.22, 1) both;
@@ -923,12 +1417,32 @@ img, canvas {
   animation: fan-sweep 0.32s ease-out both;
 }
 
+/* 天兵武器：接触主角后短促前刺（0.2s） */
+@keyframes enemy-wuqi-thrust {
+  0%, 100% {
+    transform: translate(calc(-50% + 30px), calc(-50% + 35px));
+  }
+  40% {
+    transform: translate(calc(-50% + 30px + 14px), calc(-50% + 35px));
+  }
+}
+@keyframes enemy-arc-flash {
+  0%   { opacity: 0; transform: scale(0.65); }
+  20%  { opacity: 1; transform: scale(1); }
+  55%  { opacity: 0.95; transform: scale(1.12); }
+  100% { opacity: 0; transform: scale(1.28); }
+}
 @keyframes enemy-die {
   0% { transform: scaleY(1) translateY(0); opacity: 1; filter: brightness(1.4); }
   100% { transform: scaleY(0.2) translateY(20px); opacity: 0; filter: brightness(2); }
 }
 @keyframes hurt-flash {
   50% { opacity: 0.35; }
+}
+@keyframes hit-white-flash {
+  0%, 40% { filter: brightness(0) invert(1); opacity: 1; }
+  41%, 58% { filter: brightness(0) invert(1); opacity: 0.2; }
+  59%, 100% { filter: brightness(0) invert(1); opacity: 1; }
 }
 @keyframes fan-pose {
   0% { transform: translateX(0) rotate(0) scaleY(1); }
@@ -965,6 +1479,15 @@ img, canvas {
   }
   100% {
     transform: translate3d(8px, 8px, 0) rotate(10deg);
+  }
+}
+/* 匕首前刺：本地 +X 为面朝前方（身体镜像后自动朝左） */
+@keyframes knife-thrust {
+  0%, 100% {
+    transform: translate3d(0px, 0px, 0) rotate(0deg);
+  }
+  40% {
+    transform: translate3d(14px, 0px, 0) rotate(0deg);
   }
 }
 @keyframes sword-arm-slash-left {
@@ -1050,13 +1573,13 @@ img, canvas {
   left: 0;
   bottom: 0;
   z-index: 9000;
-  width: clamp(72px, 12vw, 110px);
-  min-height: 72px;
+  width: clamp(77px, 13vw, 119px);
+  min-height: 77px;
   overflow: visible;
   transform-origin: 50% 100%;
   pointer-events: none;
   will-change: transform;
-  margin-left: -36px;
+  margin-left: -39px;
 }
 .runner__shadow {
   position: absolute;
@@ -1068,6 +1591,8 @@ img, canvas {
   background: radial-gradient(ellipse at center, #0008 0%, #0000 72%);
 }
 .runner__sprite {
+  position: relative;
+  z-index: 3;
   display: block;
   width: 100%;
   height: auto;
@@ -1086,13 +1611,84 @@ img, canvas {
 .runner.is-facing-left.is-moving:not(.is-air) .runner__sprite {
   animation: run-cycle-left 0.18s steps(2, end) infinite;
 }
+.runner.is-fan-hero.is-facing-left.is-moving:not(.is-air) .runner__sprite,
+.runner.is-knife-hero.is-facing-left.is-moving:not(.is-air) .runner__sprite {
+  animation: run-cycle 0.18s steps(2, end) infinite;
+}
 .runner.is-moving:not(.is-air) .runner__shadow {
   animation: run-shadow 0.18s steps(2, end) infinite;
 }
 .runner.is-air .runner__shadow { opacity: 0.35; transform: translateX(-50%) scaleX(0.65); }
+.runner[data-hero="blue"] {
+  width: clamp(156px, 25.9vw, 238px);
+  margin-left: -77px;
+}
+/* 14 帧剑术连招：独立舞台，避免被 runner transform 裁切；左下角对齐，不逐帧缩放 */
+.combo-stage {
+  --combo-w: 1020;
+  --combo-h: 569;
+  --combo-scale: 0.441;
+  --combo-x: 0px;
+  --combo-y: -6px;
+  position: absolute;
+  left: var(--combo-x);
+  bottom: var(--combo-y);
+  width: calc(1px * var(--combo-w));
+  height: calc(1px * var(--combo-h));
+  transform-origin: 510px 569px;
+  pointer-events: none;
+  z-index: 9100;
+  overflow: visible;
+  display: none;
+}
+.combo-stage.is-on {
+  display: block;
+}
+.combo-stage[hidden] { display: none !important; }
+.combo-stage img {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  display: none;
+  pointer-events: none;
+  user-select: none;
+}
+.combo-stage img.is-on {
+  display: block;
+  opacity: 1;
+}
+.runner.is-combo-gif .runner__sprite,
+.runner.is-combo-gif .player-feet,
+.runner.is-combo-gif .weapon-rack,
+.runner.is-combo-gif .arm-socket,
+.runner.is-combo-gif .runner__shadow {
+  visibility: hidden !important;
+}
 .runner[data-hero="blue"] .runner__sprite {
-  width: 108%;
-  margin-left: -4%;
+  width: 100%;
+  margin-left: 0;
+}
+.runner.combo-body-mode .runner__sprite {
+  width: 100%;
+  margin-left: 0;
+  filter: drop-shadow(1px 2px 0 #000a);
+}
+.runner.combo-body-mode.is-moving .runner__sprite {
+  animation: none;
+}
+/* 隐藏旧版程序弧光（全身帧里已含弧光） */
+.runner.is-knife-hero .weapon-arc,
+.runner.is-knife-hero .slash-vfx,
+.runner.is-knife-hero .fan-arc {
+  display: none !important;
+  opacity: 0 !important;
+  animation: none !important;
 }
 
 .run-hint {
@@ -1151,7 +1747,7 @@ img, canvas {
   padding: 20px;
   background:
     linear-gradient(#061028ee, #061028f5),
-    url("assets/main/main_bg1.png") center / cover no-repeat;
+    url("assets/main/main_bg1.png?v=bg3") center / cover no-repeat;
   image-rendering: pixelated;
   pointer-events: auto;
   cursor: auto;
@@ -1430,7 +2026,7 @@ img, canvas {
   place-items: center;
   background:
     linear-gradient(#061028cc, #061028e6),
-    url("assets/main/main_bg1.png") center / cover no-repeat;
+    url("assets/main/main_bg1.png?v=bg3") center / cover no-repeat;
   pointer-events: auto;
   cursor: auto;
   animation: panel-in 0.28s ease-out;
@@ -1443,8 +2039,14 @@ img, canvas {
   display: none !important;
 }
 .shop[hidden] { display: none !important; }
-.shop__panel {
+.shop__layout {
   width: min(720px, 94vw);
+  display: grid;
+  gap: 18px;
+  justify-items: center;
+}
+.shop__panel {
+  width: 100%;
   padding: 18px 20px 22px;
   border: 3px solid #7ec8ff;
   border-radius: 18px;
@@ -1456,11 +2058,30 @@ img, canvas {
 }
 .shop__head {
   width: 100%;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: center;
+  gap: 10px;
+}
+.shop__title {
+  grid-column: 2;
+  margin: 0;
+  font-family: "ZCOOL QingKe HuangYou", "Silkscreen", sans-serif;
+  font-size: clamp(28px, 5.5vw, 40px);
+  font-weight: 400;
+  letter-spacing: 0.28em;
+  color: #ffe56a;
+  text-shadow:
+    2px 0 0 #000,
+    -2px 0 0 #000,
+    0 2px 0 #000,
+    0 -2px 0 #000,
+    2px 2px 0 #000;
+  text-align: center;
 }
 .shop__gold {
+  grid-column: 3;
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1584,17 +2205,32 @@ img, canvas {
   display: block;
   margin-bottom: 6px;
   font-family: "ZCOOL QingKe HuangYou", sans-serif;
-  font-size: clamp(18px, 3vw, 24px);
+  font-size: clamp(24px, 4.2vw, 32px);
   color: #ffe56a;
   text-shadow: 1px 1px 0 #000;
 }
+.shop__tip strong[hidden] { display: none !important; }
 .shop__tip p {
   margin: 0;
   font-family: "Press Start 2P", monospace;
-  font-size: 9px;
-  line-height: 1.6;
+  font-size: clamp(11px, 2vw, 14px);
+  line-height: 1.7;
   color: #c5d6ff;
   letter-spacing: 0.04em;
+}
+.shop__tip.is-detail {
+  display: grid;
+  place-items: center;
+  min-height: 72px;
+  padding: 14px 16px;
+}
+.shop__tip.is-detail p {
+  font-family: "ZCOOL QingKe HuangYou", "Silkscreen", sans-serif;
+  font-size: clamp(22px, 4.2vw, 32px);
+  line-height: 1.35;
+  color: #ffe56a;
+  letter-spacing: 0.12em;
+  text-shadow: 2px 2px 0 #000;
 }
 .shop__actions {
   width: 100%;
@@ -1606,13 +2242,13 @@ img, canvas {
   margin-top: 4px;
 }
 .shop__buy {
-  padding: 12px 28px;
+  padding: 14px 36px;
   border: 3px solid #7ec8ff;
   border-radius: 10px;
   background: linear-gradient(180deg, #2a58b0, #1a3878);
   color: #e8f2ff;
   font-family: "Press Start 2P", monospace;
-  font-size: 11px;
+  font-size: 13px;
   letter-spacing: 0.12em;
   cursor: pointer;
   box-shadow: 0 4px 0 #0a1838;
@@ -1628,17 +2264,23 @@ img, canvas {
   transform: none;
 }
 .shop__next {
+  width: min(72%, 240px);
   padding: 14px 28px;
   border: 3px solid #ffe56a;
   border-radius: 10px;
   background: linear-gradient(180deg, #c9a020, #8a6010);
   color: #fff8d8;
   font-family: "Press Start 2P", monospace;
-  font-size: 12px;
-  letter-spacing: 0.08em;
+  font-size: 13px;
+  letter-spacing: 0.12em;
   cursor: pointer;
   box-shadow: 0 5px 0 #3a2808, 0 0 18px #ffe56a44;
   text-shadow: 1px 1px 0 #0008;
+}
+.shop__next-n {
+  display: inline-block;
+  position: relative;
+  top: 1.5px;
 }
 .shop__next:hover {
   filter: brightness(1.1);
@@ -1651,10 +2293,10 @@ img, canvas {
 }
 
 @media (max-width: 560px) {
-  .runner { width: clamp(64px, 22vw, 92px); }
+  .runner { width: clamp(69px, 23.8vw, 99px); }
   .pickup-coin { width: 70px; height: 70px; margin-left: -35px; }
   .enemy { width: 166px; margin-left: -83px; }
-  .runner { margin-left: -32px; }
+  .runner { margin-left: -34px; }
   .fan-arc { --arc-r: 220px; }
   .shop__slots { grid-template-columns: 1fr; max-width: 220px; }
   .shop-slot__frame { max-width: 160px; }
